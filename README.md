@@ -73,7 +73,7 @@ npm run dev
 
 📌 Catatan: Gunakan header Content-Type: application/json saat melakukan request via Postman.
 
-##👥 Tim Pengembang
+## 👥 Tim Pengembang
 Juandra Alghifary (1103220165) - Backend, Database & API Architect
 
 Fadhillah Putra Ibnulani (110322130)) - Frontend & UI/UX Developer
