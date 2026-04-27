@@ -1,0 +1,63 @@
+-- =========================================================
+-- SCRIPT SETUP DATABASE MANAJEMEN GUDANG (POSTGRESQL)
+-- =========================================================
+
+-- 1. Membuat tabel Users (Untuk Karyawan & Admin)
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nama VARCHAR(100) NOT NULL,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL, -- Pastikan nanti simpan hash (misal pakai bcrypt)
+    role VARCHAR(20) CHECK (role IN ('admin', 'staff')) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Membuat tabel Items (Master Barang)
+CREATE TABLE items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    barcode VARCHAR(100) UNIQUE NOT NULL,
+    nama_barang VARCHAR(150) NOT NULL,
+    jenis VARCHAR(50),
+    stok_aktual INTEGER NOT NULL DEFAULT 0 CHECK (stok_aktual >= 0), -- Cegah stok minus di level database
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Membuat Index untuk barcode agar pencarian/scan super cepat
+CREATE INDEX idx_items_barcode ON items(barcode);
+
+-- 3. Membuat tabel Scanner Queue (Ruang Tunggu Antrean)
+CREATE TABLE scanner_queue (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    barcode VARCHAR(100) NOT NULL,
+    mode VARCHAR(10) CHECK (mode IN ('IN', 'OUT')) NOT NULL,
+    status VARCHAR(20) DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')),
+    scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. Membuat tabel Inventory Logs (Jejak History Transaksi)
+CREATE TABLE inventory_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_id UUID NOT NULL,
+    user_id UUID NOT NULL, -- Karyawan/Admin yang menekan tombol ACC
+    tipe_transaksi VARCHAR(10) CHECK (tipe_transaksi IN ('IN', 'OUT')) NOT NULL,
+    qty INTEGER NOT NULL DEFAULT 1 CHECK (qty > 0),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Menghubungkan ke tabel items dan users
+    FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Membuat Index tambahan untuk laporan history
+CREATE INDEX idx_logs_item_id ON inventory_logs(item_id);
+CREATE INDEX idx_logs_created_at ON inventory_logs(created_at);
+
+Catatan Ekstra untuk Backend (Node.js):
+Kolom Password: Jangan lupa pakai library bcrypt di Node.js untuk melakukan hashing sebelum menyimpan data ke tabel users. Jangan pernah simpan password dalam bentuk plain text.
+
+Keamanan Stok Minus: Perhatikan bagian CHECK (stok_aktual >= 0). Ini adalah pengaman lapis terakhir dari database. Walaupun di Node.js kamu lupa mengecek stok sebelum meng-ACC barang OUT, PostgreSQL akan menolak (error) transaksinya jika stok dipaksa menjadi minus. Ini sangat berguna untuk mencegah bug logistik.
+
+ON DELETE CASCADE: Di tabel inventory_logs, jika master barang (items) dihapus, maka lognya juga akan ikut terhapus. Namun, untuk user_id diset ON DELETE SET NULL, artinya jika akun admin/karyawan dihapus, log transaksinya tetap ada (tidak hilang), hanya saja nama peng-ACC nya menjadi null. Ini praktik terbaik untuk audit gudang.
+
+password postgre OS win: root
