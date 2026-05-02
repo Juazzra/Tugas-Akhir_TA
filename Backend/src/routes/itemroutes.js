@@ -1,8 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { getAllItems, createItem } = require('../controllers/itemController');
+const itemController = require('../controllers/itemController');
+const { verifyToken, isAdmin } = require('../middleware/authMiddleware');
 
-router.get('/', getAllItems);
-router.post('/', createItem);
+// Endpoint Lihat Barang (Semua user yang login boleh akses)
+router.get('/', verifyToken, itemController.getAllItems);
+
+// Endpoint Tambah Barang (Hanya ADMIN yang boleh akses)
+router.post('/', verifyToken, isAdmin, itemController.createItem);
 
 module.exports = router;

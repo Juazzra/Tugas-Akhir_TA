@@ -1,77 +1,85 @@
-const pool = require('../config/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const pool = require('../config/db');
 
-// POST: Register Karyawan/Admin
-const register = async (req, res) => {
-    const { nama, username, password, role } = req.body;
+// ==========================================
+// REGISTER KARYAWAN / ADMIN
+// ==========================================
+exports.register = async (req, res) => {
     try {
-        // Acak password (hashing)
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
+        // Ambil data dari request body (Sesuai skema database baru)
+        const { nik, pin, nama, departemen_id, nama_leader, tipe_karyawan, role } = req.body;
 
-        const result = await pool.query(
-            'INSERT INTO users (nama, username, password, role) VALUES ($1, $2, $3, $4) RETURNING id, nama, username, role',
-            [nama, username, hashedPassword, role]
-        );
-        
-        res.status(201).json({ success: true, message: 'Registrasi berhasil', data: result.rows[0] });
-    } catch (error) {
-        if (error.code === '23505') {
-            return res.status(400).json({ success: false, message: 'Username sudah dipakai!' });
+        // Cek apakah NIK sudah terdaftar
+        const userExist = await pool.query('SELECT * FROM users WHERE nik = $1', [nik]);
+        if (userExist.rows.length > 0) {
+            return res.status(400).json({ message: 'NIK sudah terdaftar!' });
         }
-        res.status(500).json({ success: false, message: 'Server Error' });
+
+        // Hash PIN (Sama seperti hash password)
+        const salt = await bcrypt.genSalt(10);
+        const hashedPin = await bcrypt.hash(pin, salt);
+
+        // Masukkan data ke database
+        const newUser = await pool.query(
+            `INSERT INTO users (nik, pin, nama, departemen_id, nama_leader, tipe_karyawan, role) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, nik, nama, role`,
+            [nik, hashedPin, nama, departemen_id || null, nama_leader || null, tipe_karyawan || 'tetap', role]
+        );
+
+        res.status(201).json({
+            message: 'Registrasi berhasil!',
+            user: newUser.rows[0]
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
-const login = async (req, res) => {
-    const { username, password } = req.body;
-    
-    console.log("=== Debug Login ===");
-    console.log("Username dari Postman:", username);
-    console.log("Password dari Postman:", password);
-
+// ==========================================
+// LOGIN KARYAWAN / ADMIN
+// ==========================================
+exports.login = async (req, res) => {
     try {
-        // 1. Ambil user berdasarkan username
-        const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+        const { nik, pin } = req.body;
+
+        // Cari user berdasarkan NIK
+        const result = await pool.query('SELECT * FROM users WHERE nik = $1', [nik]);
         
         if (result.rows.length === 0) {
-            console.log("User tidak ditemukan di DB");
-            return res.status(401).json({ success: false, message: 'Username atau Password salah!' });
+            return res.status(400).json({ message: 'NIK atau PIN salah!' });
         }
 
         const user = result.rows[0];
-        console.log("User ditemukan:", user.username);
-        console.log("Password di DB (Hashed):", user.password);
 
-        // 2. Bandingkan password
-        // PENTING: bcrypt.compare(password_polos, password_hash)
-        const isMatch = await bcrypt.compare(password, user.password);
+        // Cocokkan PIN yang diinput dengan Hash PIN di database
+        const isMatch = await bcrypt.compare(pin, user.pin);
         
-        console.log("Hasil Cocok:", isMatch);
-        console.log("====================");
-
         if (!isMatch) {
-            return res.status(401).json({ success: false, message: 'Username atau Password salah!' });
+            return res.status(400).json({ message: 'NIK atau PIN salah!' });
         }
 
-        // 3. Jika cocok, buat token
-        const token = jwt.sign(
-            { id: user.id, role: user.role }, 
-            process.env.JWT_SECRET, 
-            { expiresIn: '1d' }
+        // Buat Token JWT (Berisi ID, NIK, dan Role)
+        const payload = {
+            user: {
+                id: user.id,
+                nik: user.nik,
+                role: user.role
+            }
+        };
+
+        jwt.sign(
+            payload,
+            process.env.JWT_SECRET,
+            { expiresIn: '1d' }, // Token berlaku 1 hari
+            (err, token) => {
+                if (err) throw err;
+                res.json({ token, message: 'Login berhasil!' });
+            }
         );
-
-        res.status(200).json({
-            success: true,
-            message: 'Login berhasil',
-            token: token,
-            data: { id: user.id, nama: user.nama, role: user.role }
-        });
-
-    } catch (error) {
-        console.error("Error Login:", error.message);
-        res.status(500).json({ success: false, message: 'Server Error' });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Server error' });
     }
 };
-module.exports = { register, login };

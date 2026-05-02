@@ -1,43 +1,39 @@
 const pool = require('../config/db');
 
-// GET: Ambil semua master barang
-const getAllItems = async (req, res) => {
+// Lihat semua barang (Untuk Katalog di HP Karyawan)
+exports.getAllItems = async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM items ORDER BY created_at DESC');
-        res.status(200).json({
-            success: true,
-            data: result.rows
-        });
-    } catch (error) {
-        console.error(error.message);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        // Ambil semua barang, urutkan berdasarkan nama
+        const result = await pool.query('SELECT * FROM items ORDER BY nama_barang ASC');
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Server error' });
     }
 };
 
-// POST: Tambah barang baru
-const createItem = async (req, res) => {
-    const { barcode, nama_barang, jenis, stok_aktual } = req.body;
+// Tambah barang baru (Khusus Admin)
+exports.createItem = async (req, res) => {
     try {
-        const result = await pool.query(
+        const { barcode, nama_barang, jenis, stok_aktual } = req.body;
+
+        // Cek apakah barcode sudah ada
+        const itemExist = await pool.query('SELECT * FROM items WHERE barcode = $1', [barcode]);
+        if (itemExist.rows.length > 0) {
+            return res.status(400).json({ message: 'Barcode sudah terdaftar untuk barang lain!' });
+        }
+
+        const newItem = await pool.query(
             'INSERT INTO items (barcode, nama_barang, jenis, stok_aktual) VALUES ($1, $2, $3, $4) RETURNING *',
             [barcode, nama_barang, jenis, stok_aktual || 0]
         );
-        res.status(201).json({
-            success: true,
-            message: 'Barang berhasil ditambahkan',
-            data: result.rows[0]
-        });
-    } catch (error) {
-        console.error(error.message);
-        // Tangkap error jika barcode duplikat
-        if (error.code === '23505') {
-            return res.status(400).json({ success: false, message: 'Barcode sudah terdaftar!' });
-        }
-        res.status(500).json({ success: false, message: 'Server Error' });
-    }
-};
 
-module.exports = {
-    getAllItems,
-    createItem
+        res.status(201).json({
+            message: 'Barang berhasil ditambahkan!',
+            item: newItem.rows[0]
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Server error' });
+    }
 };
