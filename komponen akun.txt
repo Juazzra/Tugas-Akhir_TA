@@ -1,0 +1,12 @@
+komponen akun
+nama, nik, departement, nama leader, tipe karyawan, pin akun, role
+
+req. login: nik, pin karyawan
+
+page account (client side view)	fixed = nama, nik, tipe karyw. dept.
+				changeable = nama leader, pin password
+
+admin bisa change semua data karyawan (di emplyr list page mungkin)
+
+request page client: list item dan stok, klik 1 item akan dropdown jml brg, alasan req (bisa dropdown, cth. rusak dll), tanggal pengambilan dan bukti foto (rusak, hilang)
+proses request: karyawan login menggunakan nik dan pin, lalu membuka page request, memilih barang (jika stok == 0, tidak bisa dipilih) dan mengisi alasan dan foto lalu masuk ke keranjang, jika sudah selesai tekan keranjang lalu mengisi tanggal pengambilan, klik request lalu  request akan masuk ke notifikasi admin, admin mengecek permintaan barang, admin menyetujui permintaan,premintaan masuk pada pending page  (tahap permintaan disetujui), pada hari pengambilan admin akan menyetujui serah terima di pending page, lalu barcode per jenis item di scan (1x scan per jenis item) sesuai dengan list request karyawan, stok berkurang di database setelah semua requeirment scan terpenuhi.
