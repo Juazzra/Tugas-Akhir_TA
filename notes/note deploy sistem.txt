@@ -1,0 +1,11 @@
+1. Install Node.js, PostgreSQL, dan atur .env.
+
+2. Jalankan script SQL untuk membuat 7 Tabel dan memasukkan Master 18 Departemen (seperti yang kita lakukan sebelumnya).
+
+3. Buka terminal/Command Prompt di PC Pabrik dan ketik (direktori file)
+node seedAdmin.js
+Terminal akan memproses enkripsi dan memunculkan tulisan:
+✅ Berhasil! Super Admin telah dibuat...
+NIK: ADMIN001 dan PIN: 123456
+
+4. nyalakan server (npm run dev atau node app.js).

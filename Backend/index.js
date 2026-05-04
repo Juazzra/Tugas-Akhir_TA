@@ -17,6 +17,11 @@ app.use(express.json());
 const itemRoutes = require('./src/routes/itemRoutes');
 app.use('/api/items', itemRoutes);
 
+const requestRoutes = require('./src/routes/requestRoutes'); // Sesuaikan path
+
+// Daftarkan endpoint API
+app.use('/api/requests', requestRoutes);
+
 // routes users API
 const userRoutes = require('./src/routes/userRoutes');
 app.use('/api/users', userRoutes);

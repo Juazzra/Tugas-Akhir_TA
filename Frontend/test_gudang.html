@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WMS - Gudang & Request (Ultimate)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans p-6">
+
+<div id="app" class="max-w-6xl mx-auto">
+    
+    <!-- LOGIN FORM -->
+    <div v-if="!isLoggedIn" class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md mt-10 border-t-4 border-indigo-600">
+        <h2 class="text-2xl font-bold mb-6 text-center">Login Sistem Request</h2>
+        <div v-if="globalError" class="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">{{ globalError }}</div>
+        <div class="mb-4"><label class="block text-sm font-semibold mb-2">NIK</label><input v-model="loginForm.nik" type="text" class="w-full border p-2 rounded"></div>
+        <div class="mb-6"><label class="block text-sm font-semibold mb-2">PIN</label><input v-model="loginForm.pin" type="password" @keyup.enter="doLogin" class="w-full border p-2 rounded"></div>
+        <button @click="doLogin" class="w-full bg-indigo-600 text-white font-bold py-2 rounded hover:bg-indigo-700">Login</button>
+    </div>
+
+    <!-- DASHBOARD UTAMA -->
+    <div v-else class="bg-white p-6 rounded-lg shadow-md mt-6">
+        <div class="flex justify-between items-center mb-6 border-b pb-4">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-700">Menu {{ myProfile.role === 'admin' ? 'Gudang (Admin)' : 'Request (Karyawan)' }}</h2>
+                <p class="text-sm text-gray-500 mt-1">{{ myProfile.nama }} ({{ myProfile.nik }})</p>
+            </div>
+            <button @click="doLogout" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 font-bold">Logout</button>
+        </div>
+
+        <div v-if="globalError" class="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">{{ globalError }}</div>
+        <div v-if="globalSuccess" class="bg-green-100 text-green-700 p-3 rounded mb-4 text-sm">{{ globalSuccess }}</div>
+
+        <!-- NAVIGASI MENU -->
+        <div class="flex flex-wrap gap-4 mb-6">
+            <button @click="setMenu('katalog')" :class="currentMenu === 'katalog' ? 'bg-indigo-600 text-white' : 'bg-gray-200'" class="px-4 py-2 rounded font-semibold">Katalog Barang</button>
+            <button v-if="myProfile.role === 'admin'" @click="setMenu('tambah_barang')" :class="currentMenu === 'tambah_barang' ? 'bg-indigo-600 text-white' : 'bg-gray-200'" class="px-4 py-2 rounded font-semibold">Tambah Barang</button>
+            <button v-if="myProfile.role === 'karyawan'" @click="setMenu('keranjang')" :class="currentMenu === 'keranjang' ? 'bg-indigo-600 text-white' : 'bg-gray-200'" class="px-4 py-2 rounded font-semibold flex items-center gap-2">
+                Keranjang <span v-if="cart.length > 0" class="bg-red-500 text-white rounded-full px-2 py-0.5 text-xs">{{ cart.length }}</span>
+            </button>
+        </div>
+
+        <!-- MENU: KATALOG BARANG -->
+        <div v-if="currentMenu === 'katalog'">
+            
+            <!-- Filter Pencarian -->
+            <div class="flex gap-2 mb-6">
+                <input v-model="searchQuery" @keyup.enter="doSearch" type="text" class="w-full max-w-md border p-2 rounded" placeholder="Cari nama barang...">
+                <button @click="doSearch" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-bold">Cari</button>
+            </div>
+
+            <!-- Grid Katalog -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div v-for="item in items" :key="item.id" class="border p-4 rounded bg-gray-50 flex flex-col justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-indigo-800">{{ item.nama_barang }}</h3>
+                        <p class="text-xs text-gray-500 mb-2">Barcode: {{ item.barcode }} | Jenis: {{ item.jenis }}</p>
+                        <p class="text-sm font-semibold">Stok: <span :class="item.stok_aktual > 0 ? 'text-green-600' : 'text-red-600'">{{ item.stok_aktual }}</span></p>
+                    </div>
+                    
+                    <!-- Aksi Karyawan (Add to Cart) -->
+                    <div v-if="myProfile.role === 'karyawan'" class="mt-4">
+                        <button :disabled="item.stok_aktual <= 0" @click="openCartModal(item)" class="w-full bg-blue-500 text-white py-1 rounded text-sm hover:bg-blue-600 disabled:bg-gray-300">
+                            {{ item.stok_aktual > 0 ? '+ Keranjang' : 'Stok Habis' }}
+                        </button>
+                    </div>
+
+                    <!-- Aksi Admin (Edit & Delete) -->
+                    <div v-if="myProfile.role === 'admin'" class="mt-4 flex gap-2">
+                        <button @click="openEditItemModal(item)" class="w-1/2 bg-yellow-500 text-white py-1 rounded text-sm hover:bg-yellow-600 font-bold">Edit</button>
+                        <button @click="doDeleteItem(item.id)" class="w-1/2 bg-red-500 text-white py-1 rounded text-sm hover:bg-red-600 font-bold">Hapus</button>
+                    </div>
+                </div>
+                <div v-if="items.length === 0" class="col-span-3 text-center py-10 text-gray-500 border rounded bg-gray-50">Barang tidak ditemukan.</div>
+            </div>
+
+            <!-- Paginasi -->
+            <div v-if="totalPages > 1" class="flex justify-center items-center gap-4 mt-8">
+                <button @click="changePage(currentPage - 1)" :disabled="currentPage === 1" class="px-4 py-2 bg-gray-200 rounded disabled:opacity-50">Sebelumnnya</button>
+                <span class="font-semibold text-sm text-gray-600">Halaman {{ currentPage }} dari {{ totalPages }}</span>
+                <button @click="changePage(currentPage + 1)" :disabled="currentPage === totalPages" class="px-4 py-2 bg-gray-200 rounded disabled:opacity-50">Selanjutnya</button>
+            </div>
+        </div>
+
+        <!-- MENU: TAMBAH BARANG (Khusus Admin) -->
+        <div v-if="currentMenu === 'tambah_barang' && myProfile.role === 'admin'" class="max-w-lg bg-gray-50 p-6 border rounded">
+            <h3 class="font-bold text-lg mb-4 text-indigo-800">Registrasi Master Barang Baru</h3>
+            <div class="mb-3"><label class="text-sm font-semibold">Barcode</label><input v-model="itemForm.barcode" type="text" class="w-full border p-2 rounded"></div>
+            <div class="mb-3"><label class="text-sm font-semibold">Nama Barang</label><input v-model="itemForm.nama_barang" type="text" class="w-full border p-2 rounded"></div>
+            <div class="mb-3"><label class="text-sm font-semibold">Jenis / Kategori</label><input v-model="itemForm.jenis" type="text" class="w-full border p-2 rounded"></div>
+            <div class="mb-4"><label class="text-sm font-semibold">Stok Awal</label><input v-model="itemForm.stok_aktual" type="number" class="w-full border p-2 rounded"></div>
+            <button @click="doAddItem" class="w-full bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700">Simpan Barang</button>
+        </div>
+
+        <!-- MENU: KERANJANG REQUEST (Khusus Karyawan) -->
+        <div v-if="currentMenu === 'keranjang' && myProfile.role === 'karyawan'">
+            <!-- ... (Sama seperti sebelumnya) ... -->
+            <div v-if="cart.length > 0" class="bg-gray-50 p-4 border rounded mb-6">
+                <table class="w-full text-sm mb-4">
+                    <thead><tr class="border-b"><th class="text-left py-2">Barang</th><th class="text-center py-2">Qty</th><th class="text-left py-2">Alasan</th><th class="py-2">Aksi</th></tr></thead>
+                    <tbody>
+                        <tr v-for="(cartItem, index) in cart" :key="index" class="border-b">
+                            <td class="py-2 font-semibold">{{ cartItem.nama_barang }}</td>
+                            <td class="py-2 text-center">{{ cartItem.jumlah }}</td>
+                            <td class="py-2">{{ cartItem.alasan || '-' }}</td>
+                            <td class="py-2 text-center"><button @click="removeFromCart(index)" class="text-red-500 font-bold hover:underline">X</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="border-t pt-4">
+                    <label class="block text-sm font-semibold mb-1">Rencana Tanggal Pengambilan:</label>
+                    <input v-model="checkoutDate" type="date" class="border p-2 rounded w-full max-w-xs mb-4">
+                    <button @click="doCheckout" class="bg-indigo-600 text-white px-6 py-2 rounded font-bold hover:bg-indigo-700">Checkout Request</button>
+                </div>
+            </div>
+            <div v-else class="text-center py-10 text-gray-500 border rounded bg-gray-50">Keranjang Anda masih kosong.</div>
+        </div>
+
+    </div>
+
+    <!-- ================================================= -->
+    <!-- MODAL EDIT BARANG (ADMIN) -->
+    <!-- ================================================= -->
+    <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white p-6 rounded-lg w-full max-w-sm shadow-xl">
+            <h3 class="font-bold text-lg mb-4">Edit Master Barang</h3>
+            <div class="mb-3"><label class="text-sm font-semibold">Barcode</label><input v-model="editForm.barcode" type="text" class="w-full border p-2 rounded"></div>
+            <div class="mb-3"><label class="text-sm font-semibold">Nama Barang</label><input v-model="editForm.nama_barang" type="text" class="w-full border p-2 rounded"></div>
+            <div class="mb-4"><label class="text-sm font-semibold">Jenis / Kategori</label><input v-model="editForm.jenis" type="text" class="w-full border p-2 rounded"></div>
+            <div class="flex justify-end gap-2">
+                <button @click="showEditModal = false" class="bg-gray-300 px-4 py-2 rounded text-sm">Batal</button>
+                <button @click="submitEditItem" class="bg-yellow-600 text-white px-4 py-2 rounded text-sm font-bold">Simpan Perubahan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================= -->
+    <!-- MODAL ADD TO CART (KARYAWAN) -->
+    <!-- ================================================= -->
+    <div v-if="showCartModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white p-6 rounded-lg w-full max-w-sm shadow-xl">
+            <h3 class="font-bold text-lg mb-2">Request: {{ selectedItem?.nama_barang }}</h3>
+            <p class="text-xs text-gray-500 mb-4">Maksimal request: {{ selectedItem?.stok_aktual }}</p>
+            <div class="mb-3"><label class="text-sm font-semibold">Jumlah (Qty)</label><input v-model="cartForm.jumlah" type="number" min="1" :max="selectedItem?.stok_aktual" class="w-full border p-2 rounded"></div>
+            <div class="mb-4"><label class="text-sm font-semibold">Alasan / Keterangan</label><input v-model="cartForm.alasan" type="text" class="w-full border p-2 rounded" placeholder="Contoh: Barang lama rusak"></div>
+            <div class="flex justify-end gap-2">
+                <button @click="showCartModal = false" class="bg-gray-300 px-4 py-2 rounded text-sm">Batal</button>
+                <button @click="confirmAddToCart" class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-bold">Masukkan Keranjang</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+const { createApp } = Vue;
+const API_URL = 'http://localhost:3000/api';
+
+createApp({
+    data() {
+        return {
+            isLoggedIn: false, token: '', currentMenu: 'katalog',
+            globalError: '', globalSuccess: '', myProfile: {},
+            inactivityTimer: null, // Detektor AFK
+            
+            // State Katalog & Paginasi
+            items: [], searchQuery: '', currentPage: 1, totalPages: 1, limit: 6,
+            
+            // State Request/Cart
+            cart: [], checkoutDate: '',
+            
+            // Forms
+            loginForm: { nik: '', pin: '' },
+            itemForm: { barcode: '', nama_barang: '', jenis: '', stok_aktual: 0 },
+            
+            // Modals
+            showCartModal: false, selectedItem: null, cartForm: { jumlah: 1, alasan: '' },
+            showEditModal: false, editForm: { id: '', barcode: '', nama_barang: '', jenis: '' }
+        }
+    },
+    mounted() {
+        const savedToken = localStorage.getItem('wms_token');
+        if (savedToken) {
+            this.token = savedToken;
+            this.resumeSession(); 
+        }
+    },
+    methods: {
+        setAuthHeader() { return { headers: { 'Authorization': `Bearer ${this.token}` } }; },
+        clearMsg() { this.globalError = ''; this.globalSuccess = ''; },
+        setMenu(menu) { this.currentMenu = menu; this.clearMsg(); },
+
+        // --- SISTEM AFK & SESSION ---
+        startInactivityTimer() {
+            const AFK_LIMIT = 10 * 60 * 1000; // 10 menit
+            this.inactivityTimer = setTimeout(() => {
+                alert('Sesi berakhir karena AFK 10 Menit. Silakan login kembali.');
+                this.doLogout();
+            }, AFK_LIMIT);
+        },
+        resetTimer() {
+            if (this.isLoggedIn) {
+                clearTimeout(this.inactivityTimer);
+                this.startInactivityTimer();
+            }
+        },
+        setupActivityListeners() {
+            window.addEventListener('mousemove', this.resetTimer);
+            window.addEventListener('keydown', this.resetTimer);
+            window.addEventListener('click', this.resetTimer);
+        },
+
+        // --- AUTENTIKASI ---
+        async doLogin() {
+            this.clearMsg();
+            try {
+                const res = await axios.post(`${API_URL}/users/login`, this.loginForm);
+                this.token = res.data.token;
+                localStorage.setItem('wms_token', this.token); 
+                
+                await this.resumeSession();
+            } catch (err) { this.globalError = err.response?.data?.message || 'Login gagal'; }
+        },
+        async resumeSession() {
+            try {
+                const profileRes = await axios.get(`${API_URL}/users/me`, this.setAuthHeader());
+                this.myProfile = profileRes.data;
+                this.isLoggedIn = true;
+                
+                this.setupActivityListeners();
+                this.startInactivityTimer();
+                this.fetchItems(); // Load katalog
+            } catch (err) {
+                this.doLogout(); // Depak jika token expired
+            }
+        },
+        doLogout() {
+            localStorage.removeItem('wms_token');
+            clearTimeout(this.inactivityTimer);
+            location.reload(); 
+        },
+
+        // --- FETCH & PAGINASI ITEMS ---
+        async fetchItems(page = 1) {
+            this.clearMsg();
+            try {
+                // Update endpoint untuk mendukung paginasi & search
+                const url = `${API_URL}/items?search=${this.searchQuery}&page=${page}&limit=${this.limit}`;
+                const res = await axios.get(url, this.setAuthHeader());
+                
+                // Ambil data yang dibungkus res.data.data
+                this.items = res.data.data;
+                this.currentPage = res.data.currentPage;
+                this.totalPages = res.data.totalPages;
+            } catch (err) { this.globalError = 'Gagal memuat katalog barang.'; }
+        },
+        doSearch() { this.fetchItems(1); },
+        changePage(page) { if(page >= 1 && page <= this.totalPages) this.fetchItems(page); },
+
+        // --- ADMIN: TAMBAH, EDIT, HAPUS ---
+        async doAddItem() {
+            this.clearMsg();
+            try {
+                await axios.post(`${API_URL}/items`, this.itemForm, this.setAuthHeader());
+                this.globalSuccess = 'Barang berhasil ditambahkan!';
+                this.itemForm = { barcode: '', nama_barang: '', jenis: '', stok_aktual: 0 };
+                this.fetchItems(1);
+                this.setMenu('katalog');
+            } catch (err) { this.globalError = err.response?.data?.message || 'Gagal tambah barang.'; }
+        },
+        openEditItemModal(item) {
+            this.editForm = { id: item.id, barcode: item.barcode, nama_barang: item.nama_barang, jenis: item.jenis };
+            this.showEditModal = true;
+        },
+        async submitEditItem() {
+            this.clearMsg();
+            try {
+                await axios.put(`${API_URL}/items/${this.editForm.id}`, this.editForm, this.setAuthHeader());
+                this.globalSuccess = 'Data barang berhasil diupdate!';
+                this.showEditModal = false;
+                this.fetchItems(this.currentPage); // Tetap di halaman yang sama
+            } catch (err) { this.globalError = 'Gagal update barang.'; }
+        },
+        async doDeleteItem(id) {
+            if(!confirm('Yakin ingin menghapus barang ini (Soft Delete)?')) return;
+            this.clearMsg();
+            try {
+                await axios.delete(`${API_URL}/items/${id}`, this.setAuthHeader());
+                this.globalSuccess = 'Barang berhasil dihapus.';
+                this.fetchItems(1);
+            } catch (err) { this.globalError = 'Gagal menghapus barang.'; }
+        },
+
+        // --- KARYAWAN: KERANJANG ---
+        openCartModal(item) {
+            this.selectedItem = item;
+            this.cartForm = { jumlah: 1, alasan: '' };
+            this.showCartModal = true;
+        },
+        confirmAddToCart() {
+            if(this.cartForm.jumlah > this.selectedItem.stok_aktual) {
+                alert('Jumlah melebihi stok yang ada!'); return;
+            }
+            this.cart.push({
+                item_id: this.selectedItem.id,
+                nama_barang: this.selectedItem.nama_barang,
+                jumlah: this.cartForm.jumlah,
+                alasan: this.cartForm.alasan
+            });
+            this.showCartModal = false;
+        },
+        removeFromCart(index) { this.cart.splice(index, 1); },
+        async doCheckout() {
+            this.clearMsg();
+            if(!this.checkoutDate) { this.globalError = "Pilih tanggal pengambilan!"; return; }
+            try {
+                const payload = { tgl_pengambilan: this.checkoutDate, keranjang: this.cart };
+                await axios.post(`${API_URL}/requests`, payload, this.setAuthHeader());
+                this.globalSuccess = 'Request berhasil dikirim dan menunggu persetujuan Admin!';
+                this.cart = []; this.checkoutDate = '';
+                this.setMenu('katalog');
+            } catch (err) { this.globalError = err.response?.data?.message || 'Checkout gagal.'; }
+        }
+    }
+}).mount('#app')
+</script>
+</body>
+</html>

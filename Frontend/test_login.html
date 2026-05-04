@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WMS Road Work - Role Based Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue 3 & Axios -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans p-6">
+
+<div id="app" class="max-w-5xl mx-auto">
+    
+    <!-- ========================================== -->
+    <!-- TAMPILAN 1: HALAMAN LOGIN -->
+    <!-- ========================================== -->
+    <div v-if="!isLoggedIn" class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md mt-10 border-t-4 border-blue-600">
+        <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">Login Sistem Gudang</h2>
+        
+        <div v-if="errorMessage" class="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">{{ errorMessage }}</div>
+        
+        <div class="mb-4">
+            <label class="block text-sm font-semibold mb-2">NIK</label>
+            <input v-model="loginForm.nik" type="text" class="w-full border p-2 rounded focus:outline-blue-500" placeholder="Contoh: HRG001">
+        </div>
+        <div class="mb-6">
+            <label class="block text-sm font-semibold mb-2">PIN</label>
+            <input v-model="loginForm.pin" type="password" class="w-full border p-2 rounded focus:outline-blue-500" placeholder="Masukkan PIN">
+        </div>
+        <button @click="doLogin" class="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700 transition">Login</button>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAMPILAN 2: DASHBOARD (ADMIN & KARYAWAN) -->
+    <!-- ========================================== -->
+    <div v-else class="bg-white p-6 rounded-lg shadow-md mt-6">
+        
+        <!-- Header Global -->
+        <div class="flex justify-between items-center mb-6 border-b pb-4">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-700">Dashboard {{ myProfile.role === 'admin' ? 'Administrator' : 'Karyawan' }}</h2>
+                <p class="text-sm text-gray-500 mt-1">Selamat datang, <b>{{ myProfile.nama }}</b> ({{ myProfile.nik }})</p>
+            </div>
+            <button @click="doLogout" class="bg-red-500 text-white px-4 py-2 rounded text-sm hover:bg-red-600 font-bold transition">Logout</button>
+        </div>
+
+        <div v-if="globalError" class="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">{{ globalError }}</div>
+        <div v-if="globalSuccess" class="bg-green-100 text-green-700 p-3 rounded mb-4 text-sm">{{ globalSuccess }}</div>
+
+        <!-- ========================================== -->
+        <!-- AREA KHUSUS ADMIN -->
+        <!-- ========================================== -->
+        <div v-if="myProfile.role === 'admin'">
+            <div class="flex gap-4 mb-6">
+                <button @click="currentMenu = 'list'" :class="currentMenu === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-200'" class="px-4 py-2 rounded font-semibold transition">List Karyawan</button>
+                <button @click="currentMenu = 'input'" :class="currentMenu === 'input' ? 'bg-blue-600 text-white' : 'bg-gray-200'" class="px-4 py-2 rounded font-semibold transition">Input Karyawan</button>
+            </div>
+
+            <!-- Admin: List Karyawan -->
+            <div v-if="currentMenu === 'list'" class="overflow-x-auto">
+                <table class="w-full border-collapse border border-gray-300 text-sm">
+                    <thead>
+                        <tr class="bg-gray-100">
+                            <th class="border p-2">NIK</th>
+                            <th class="border p-2">Nama</th>
+                            <th class="border p-2">Departemen</th>
+                            <th class="border p-2">Role</th>
+                            <th class="border p-2">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="user in users" :key="user.id" class="hover:bg-gray-50 text-center">
+                            <td class="border p-2 font-mono">{{ user.nik }}</td>
+                            <td class="border p-2">{{ user.nama }}</td>
+                            <td class="border p-2">{{ user.departemen || '-' }}</td>
+                            <td class="border p-2">
+                                <span :class="user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'" class="px-2 py-1 rounded text-xs uppercase font-bold">{{ user.role }}</span>
+                            </td>
+                            <td class="border p-2 space-x-2">
+                                <button @click="openEditModal(user)" class="bg-yellow-500 text-white px-2 py-1 rounded text-xs hover:bg-yellow-600">Edit</button>
+                                <button @click="doResetPin(user.id)" class="bg-indigo-500 text-white px-2 py-1 rounded text-xs hover:bg-indigo-600">Reset PIN</button>
+                                <button @click="doSoftDelete(user.id)" class="bg-orange-500 text-white px-2 py-1 rounded text-xs hover:bg-orange-600">Soft Delete</button>
+                                <button @click="doHardDelete(user.id)" class="bg-red-700 text-white px-2 py-1 rounded text-xs hover:bg-red-800">Hapus Permanen</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Admin: Input Karyawan -->
+            <div v-if="currentMenu === 'input'" class="max-w-lg bg-gray-50 p-4 border rounded">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="mb-3"><label class="text-xs font-semibold">NIK</label><input v-model="registerForm.nik" type="text" class="w-full border p-2 rounded text-sm"></div>
+                    <div class="mb-3"><label class="text-xs font-semibold">PIN Default</label><input v-model="registerForm.pin" type="text" class="w-full border p-2 rounded text-sm"></div>
+                    <div class="mb-3"><label class="text-xs font-semibold">Nama Lengkap</label><input v-model="registerForm.nama" type="text" class="w-full border p-2 rounded text-sm"></div>
+                    <div class="mb-3"><label class="text-xs font-semibold">ID Dept (1-18)</label><input v-model="registerForm.departemen_id" type="number" class="w-full border p-2 rounded text-sm"></div>
+                    <div class="mb-3"><label class="text-xs font-semibold">Nama Leader</label><input v-model="registerForm.nama_leader" type="text" class="w-full border p-2 rounded text-sm"></div>
+                    <div class="mb-3">
+                        <label class="text-xs font-semibold">Role</label>
+                        <select v-model="registerForm.role" class="w-full border p-2 rounded text-sm">
+                            <option value="karyawan">Karyawan</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </div>
+                <button @click="doRegister" class="mt-4 bg-green-600 text-white font-bold py-2 px-6 rounded hover:bg-green-700 text-sm">Simpan Karyawan</button>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- AREA KHUSUS KARYAWAN -->
+        <!-- ========================================== -->
+        <div v-if="myProfile.role === 'karyawan'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <!-- Karyawan: Profil & Edit Leader -->
+            <div class="border rounded p-4 bg-gray-50">
+                <h3 class="font-bold text-lg mb-4 text-blue-800 border-b pb-2">Informasi Profil</h3>
+                <div class="mb-2"><span class="text-sm text-gray-500 w-24 inline-block">Nama</span>: <b>{{ myProfile.nama }}</b></div>
+                <div class="mb-2"><span class="text-sm text-gray-500 w-24 inline-block">Departemen</span>: <b>{{ myProfile.nama_dept || 'Belum diatur' }}</b></div>
+                
+                <hr class="my-4">
+                <label class="block text-sm font-semibold mb-1">Nama Leader Saat Ini</label>
+                <input v-model="myProfile.nama_leader" type="text" class="w-full border p-2 rounded text-sm mb-2">
+                <button @click="doUpdateLeader" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">Update Leader</button>
+            </div>
+
+            <!-- Karyawan: Ganti PIN -->
+            <div class="border rounded p-4 bg-gray-50">
+                <h3 class="font-bold text-lg mb-4 text-orange-600 border-b pb-2">Ganti PIN</h3>
+                <label class="block text-sm font-semibold mb-1">PIN Lama</label>
+                <input v-model="changePinForm.pin_lama" type="password" class="w-full border p-2 rounded text-sm mb-3">
+                
+                <label class="block text-sm font-semibold mb-1">PIN Baru</label>
+                <input v-model="changePinForm.pin_baru" type="password" class="w-full border p-2 rounded text-sm mb-3">
+                
+                <button @click="doChangePin" class="bg-orange-500 text-white px-4 py-2 rounded text-sm hover:bg-orange-600">Simpan PIN Baru</button>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL EDIT KARYAWAN (KHUSUS ADMIN) -->
+    <!-- ========================================== -->
+    <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div class="bg-white p-6 rounded-lg w-full max-w-md shadow-xl">
+            <h3 class="font-bold text-lg mb-4">Edit Data: {{ editForm.nama }}</h3>
+            
+            <div class="mb-3"><label class="text-xs font-semibold">ID Dept</label><input v-model="editForm.departemen_id" type="number" class="w-full border p-2 rounded text-sm"></div>
+            <div class="mb-3"><label class="text-xs font-semibold">Nama Leader</label><input v-model="editForm.nama_leader" type="text" class="w-full border p-2 rounded text-sm"></div>
+            <div class="mb-3">
+                <label class="text-xs font-semibold">Role</label>
+                <select v-model="editForm.role" class="w-full border p-2 rounded text-sm">
+                    <option value="karyawan">Karyawan</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-6">
+                <button @click="showEditModal = false" class="bg-gray-300 px-4 py-2 rounded text-sm">Batal</button>
+                <button @click="submitEdit" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">Simpan Perubahan</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+const { createApp } = Vue;
+
+// Base URL Backend API kita
+const API_URL = 'http://localhost:3000/api';
+
+createApp({
+    data() {
+        return {
+            isLoggedIn: false,
+            token: '',
+            currentMenu: 'list',
+            errorMessage: '',
+            globalError: '',
+            globalSuccess: '',
+            
+            // State Data
+            myProfile: {},
+            users: [],
+            
+            // Forms
+            loginForm: { nik: '', pin: '' },
+            registerForm: { nik: '', pin: '', nama: '', departemen_id: null, nama_leader: '', tipe_karyawan: 'tetap', role: 'karyawan' },
+            changePinForm: { pin_lama: '', pin_baru: '' },
+            
+            // Edit Modal State
+            showEditModal: false,
+            editForm: { id: '', nama: '', departemen_id: null, nama_leader: '', role: '', tipe_karyawan: 'tetap' }
+        }
+    },
+    methods: {
+        setAuthHeader() {
+            return { headers: { 'Authorization': `Bearer ${this.token}` } };
+        },
+        clearMessages() {
+            this.errorMessage = ''; this.globalError = ''; this.globalSuccess = '';
+        },
+        
+        // --- AUTENTIKASI ---
+        async doLogin() {
+            this.clearMessages();
+            try {
+                const res = await axios.post(`${API_URL}/users/login`, this.loginForm);
+                this.token = res.data.token;
+                
+                // Setelah login, ambil profil untuk menentukan dia Admin atau Karyawan
+                await this.fetchMyProfile();
+                this.isLoggedIn = true;
+
+                // Jika admin, load list karyawan
+                if(this.myProfile.role === 'admin') this.fetchUsers();
+
+            } catch (error) {
+                this.errorMessage = error.response?.data?.message || 'Gagal login.';
+            }
+        },
+        doLogout() {
+            this.isLoggedIn = false; this.token = ''; this.myProfile = {}; this.users = [];
+            this.loginForm = { nik: '', pin: '' };
+            this.currentMenu = 'list';
+        },
+
+        // --- FETCH DATA ---
+        async fetchMyProfile() {
+            const res = await axios.get(`${API_URL}/users/me`, this.setAuthHeader());
+            this.myProfile = res.data;
+        },
+        async fetchUsers() {
+            try {
+                const res = await axios.get(`${API_URL}/users`, this.setAuthHeader());
+                this.users = res.data;
+            } catch (error) {
+                this.globalError = 'Gagal mengambil daftar karyawan.';
+            }
+        },
+
+        // --- FUNGSI ADMIN ---
+        async doRegister() {
+            this.clearMessages();
+            try {
+                await axios.post(`${API_URL}/users/register`, this.registerForm, this.setAuthHeader());
+                this.globalSuccess = 'Karyawan berhasil ditambahkan!';
+                this.registerForm = { nik: '', pin: '', nama: '', departemen_id: null, nama_leader: '', tipe_karyawan: 'tetap', role: 'karyawan' };
+                this.fetchUsers();
+                this.currentMenu = 'list';
+            } catch (error) {
+                this.globalError = error.response?.data?.message || 'Gagal mendaftar karyawan.';
+            }
+        },
+        openEditModal(user) {
+            this.editForm = { 
+                id: user.id, nama: user.nama, role: user.role, 
+                departemen_id: user.departemen_id, nama_leader: user.nama_leader, tipe_karyawan: user.tipe_karyawan 
+            };
+            this.showEditModal = true;
+        },
+        async submitEdit() {
+            this.clearMessages();
+            try {
+                await axios.put(`${API_URL}/users/${this.editForm.id}`, this.editForm, this.setAuthHeader());
+                this.showEditModal = false;
+                this.globalSuccess = 'Data karyawan berhasil diupdate!';
+                this.fetchUsers();
+            } catch (error) {
+                this.globalError = 'Gagal mengupdate data.';
+            }
+        },
+        async doResetPin(id) {
+            if(!confirm('Yakin ingin mereset PIN karyawan ini menjadi 123456?')) return;
+            this.clearMessages();
+            try {
+                await axios.put(`${API_URL}/users/${id}/reset-pin`, {}, this.setAuthHeader());
+                this.globalSuccess = 'PIN berhasil di-reset menjadi 123456.';
+            } catch (error) {
+                this.globalError = 'Gagal mereset PIN.';
+            }
+        },
+        async doSoftDelete(id) {
+            if (!confirm('Yakin ingin melakukan SOFT DELETE pada karyawan ini? Data akan ditandai sebagai tidak aktif.')) return;
+            this.clearMessages();
+            try {
+                await axios.delete(`${API_URL}/users/${id}?type=soft`, this.setAuthHeader());
+                this.globalSuccess = 'Karyawan berhasil di-soft delete.';
+                this.fetchUsers(); // Refresh the list
+            } catch (error) {
+                this.globalError = error.response?.data?.message || 'Gagal melakukan soft delete.';
+            }
+        },
+        async doHardDelete(id) {
+            if (!confirm('PERINGATAN! Ini akan menghapus data karyawan secara PERMANEN. Yakin ingin melanjutkan?')) return;
+            this.clearMessages();
+            try {
+                await axios.delete(`${API_URL}/users/${id}?type=hard`, this.setAuthHeader());
+                this.globalSuccess = 'Karyawan berhasil dihapus secara permanen.';
+                this.fetchUsers(); // Refresh the list
+            } catch (error) {
+                this.globalError = error.response?.data?.message || 'Gagal menghapus karyawan secara permanen.';
+            }
+        },
+
+        // --- FUNGSI KARYAWAN ---
+        // The functions below are for employees, not admin.
+        // No changes needed here based on the request.
+
+        // --- FUNGSI KARYAWAN ---
+        async doUpdateLeader() {
+            this.clearMessages();
+            try {
+                await axios.put(`${API_URL}/users/me`, { nama_leader: this.myProfile.nama_leader }, this.setAuthHeader());
+                this.globalSuccess = 'Nama Leader berhasil diupdate!';
+            } catch (error) {
+                this.globalError = 'Gagal update profil.';
+            }
+        },
+        async doChangePin() {
+            this.clearMessages();
+            try {
+                await axios.put(`${API_URL}/users/me/change-pin`, this.changePinForm, this.setAuthHeader());
+                this.globalSuccess = 'PIN rahasia berhasil diubah!';
+                this.changePinForm = { pin_lama: '', pin_baru: '' };
+            } catch (error) {
+                this.globalError = error.response?.data?.message || 'Gagal mengganti PIN.';
+            }
+        }
+    }
+}).mount('#app')
+</script>
+</body>
+</html>
