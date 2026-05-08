@@ -199,6 +199,10 @@ createApp({
             editForm: { id: '', nama: '', departemen_id: null, nama_leader: '', role: '', tipe_karyawan: 'tetap' }
         }
     },
+    // Hook mounted akan dijalankan otomatis saat halaman pertama kali dimuat/direload
+    mounted() {
+        this.checkLoginSession();
+    },
     methods: {
         setAuthHeader() {
             return { headers: { 'Authorization': `Bearer ${this.token}` } };
@@ -207,6 +211,24 @@ createApp({
             this.errorMessage = ''; this.globalError = ''; this.globalSuccess = '';
         },
         
+        // --- CEK SESI LOGIN DI LOKAL ---
+        checkLoginSession() {
+            const savedToken = localStorage.getItem('wms_road_token');
+            const savedProfile = localStorage.getItem('wms_road_profile');
+            
+            if (savedToken && savedProfile) {
+                // Jika data ditemukan di memori browser, langsung pulihkan state-nya
+                this.token = savedToken;
+                this.myProfile = JSON.parse(savedProfile);
+                this.isLoggedIn = true;
+
+                // Load data berdasarkan role
+                if(this.myProfile.role === 'admin') {
+                    this.fetchUsers();
+                }
+            }
+        },
+
         // --- AUTENTIKASI ---
         async doLogin() {
             this.clearMessages();
@@ -218,6 +240,10 @@ createApp({
                 await this.fetchMyProfile();
                 this.isLoggedIn = true;
 
+                // Simpan token dan profil ke localStorage agar tidak hilang saat reload
+                localStorage.setItem('wms_road_token', this.token);
+                localStorage.setItem('wms_road_profile', JSON.stringify(this.myProfile));
+
                 // Jika admin, load list karyawan
                 if(this.myProfile.role === 'admin') this.fetchUsers();
 
@@ -226,22 +252,36 @@ createApp({
             }
         },
         doLogout() {
-            this.isLoggedIn = false; this.token = ''; this.myProfile = {}; this.users = [];
-            this.loginForm = { nik: '', pin: '' };
-            this.currentMenu = 'list';
+            // Hapus data dari localStorage saat user benar-benar ingin keluar
+            localStorage.removeItem('wms_road_token');
+            localStorage.removeItem('wms_road_profile');
+            
+            // Me-reload halaman otomatis membersihkan semua state (mengembalikan ke tampilan login)
+            location.reload();
         },
 
         // --- FETCH DATA ---
         async fetchMyProfile() {
-            const res = await axios.get(`${API_URL}/users/me`, this.setAuthHeader());
-            this.myProfile = res.data;
+            try {
+                const res = await axios.get(`${API_URL}/users/me`, this.setAuthHeader());
+                this.myProfile = res.data;
+            } catch (error) {
+                // Jika token ternyata sudah expired/invalid di backend, paksa logout
+                if (error.response && error.response.status === 401) {
+                    this.doLogout();
+                }
+            }
         },
         async fetchUsers() {
             try {
                 const res = await axios.get(`${API_URL}/users`, this.setAuthHeader());
                 this.users = res.data;
             } catch (error) {
-                this.globalError = 'Gagal mengambil daftar karyawan.';
+                if (error.response && error.response.status === 401) {
+                    this.doLogout();
+                } else {
+                    this.globalError = 'Gagal mengambil daftar karyawan.';
+                }
             }
         },
 
@@ -292,7 +332,7 @@ createApp({
             try {
                 await axios.delete(`${API_URL}/users/${id}?type=soft`, this.setAuthHeader());
                 this.globalSuccess = 'Karyawan berhasil di-soft delete.';
-                this.fetchUsers(); // Refresh the list
+                this.fetchUsers(); 
             } catch (error) {
                 this.globalError = error.response?.data?.message || 'Gagal melakukan soft delete.';
             }
@@ -303,15 +343,11 @@ createApp({
             try {
                 await axios.delete(`${API_URL}/users/${id}?type=hard`, this.setAuthHeader());
                 this.globalSuccess = 'Karyawan berhasil dihapus secara permanen.';
-                this.fetchUsers(); // Refresh the list
+                this.fetchUsers(); 
             } catch (error) {
                 this.globalError = error.response?.data?.message || 'Gagal menghapus karyawan secara permanen.';
             }
         },
-
-        // --- FUNGSI KARYAWAN ---
-        // The functions below are for employees, not admin.
-        // No changes needed here based on the request.
 
         // --- FUNGSI KARYAWAN ---
         async doUpdateLeader() {
@@ -319,6 +355,9 @@ createApp({
             try {
                 await axios.put(`${API_URL}/users/me`, { nama_leader: this.myProfile.nama_leader }, this.setAuthHeader());
                 this.globalSuccess = 'Nama Leader berhasil diupdate!';
+                
+                // Update juga data profile yang ada di localStorage
+                localStorage.setItem('wms_road_profile', JSON.stringify(this.myProfile));
             } catch (error) {
                 this.globalError = 'Gagal update profil.';
             }

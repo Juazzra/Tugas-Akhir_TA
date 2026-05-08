@@ -159,6 +159,10 @@ createApp({
             barcodeInput: ''
         }
     },
+    // Tambahkan hook 'mounted' untuk mengecek localStorage saat halaman dimuat
+    mounted() {
+        this.checkLoginSession();
+    },
     computed: {
         filteredRequests() {
             if (this.currentTab === 'pending') return this.requests.filter(r => r.status === 'pending');
@@ -167,7 +171,6 @@ createApp({
         },
         isAllScanned() {
             if(this.requestDetails.length === 0) return false;
-            // Cek apakah setiap item is_scanned nya bernilai true
             return this.requestDetails.every(item => item.is_scanned === true);
         }
     },
@@ -177,6 +180,19 @@ createApp({
         formatDate(isoString) { return new Date(isoString).toLocaleDateString('id-ID'); },
         setTab(tab) { this.currentTab = tab; this.clearMsg(); },
 
+        // Method baru untuk mengecek sesi di localStorage
+        checkLoginSession() {
+            const savedToken = localStorage.getItem('wms_token');
+            const savedProfile = localStorage.getItem('wms_profile');
+            
+            if (savedToken && savedProfile) {
+                this.token = savedToken;
+                this.myProfile = JSON.parse(savedProfile);
+                this.isLoggedIn = true;
+                this.fetchRequests();
+            }
+        },
+
         async doLogin() {
             this.clearMsg();
             try {
@@ -185,17 +201,34 @@ createApp({
                 const profileRes = await axios.get(`${API_URL}/users/me`, this.setAuthHeader());
                 this.myProfile = profileRes.data;
                 this.isLoggedIn = true;
+                
+                // Simpan token dan profile ke localStorage
+                localStorage.setItem('wms_token', this.token);
+                localStorage.setItem('wms_profile', JSON.stringify(this.myProfile));
+
                 this.fetchRequests();
             } catch (err) { this.globalError = err.response?.data?.message || 'Login gagal'; }
         },
-        doLogout() { location.reload(); },
+        
+        doLogout() { 
+            // Hapus data dari localStorage saat logout
+            localStorage.removeItem('wms_token');
+            localStorage.removeItem('wms_profile');
+            location.reload(); 
+        },
 
         async fetchRequests() {
             try {
                 const url = this.myProfile.role === 'admin' ? `${API_URL}/requests` : `${API_URL}/requests/me`;
                 const res = await axios.get(url, this.setAuthHeader());
                 this.requests = res.data;
-            } catch (err) { this.globalError = 'Gagal memuat request.'; }
+            } catch (err) { 
+                this.globalError = 'Gagal memuat request. Sesi mungkin telah habis.'; 
+                // Opsional: otomatis logout jika token expired/invalid
+                if(err.response && err.response.status === 401) {
+                    this.doLogout();
+                }
+            }
         },
 
         async updateStatus(id, status) {
@@ -227,12 +260,11 @@ createApp({
                     barcode: this.barcodeInput
                 }, this.setAuthHeader());
                 
-                alert(res.data.message); // Tampilkan alert sukses/ditolak
+                alert(res.data.message);
                 
-                // Refresh list detail barang agar tanda X merah berubah jadi Centang hijau
                 const detailRes = await axios.get(`${API_URL}/requests/${this.selectedRequest.id}/details`, this.setAuthHeader());
                 this.requestDetails = detailRes.data;
-                this.barcodeInput = ''; // Kosongkan kolom input scanner lagi
+                this.barcodeInput = ''; 
             } catch (err) {
                 alert(err.response?.data?.message || 'Error saat scan barcode!');
                 this.barcodeInput = '';
@@ -245,8 +277,8 @@ createApp({
                 const res = await axios.post(`${API_URL}/requests/${this.selectedRequest.id}/complete`, {}, this.setAuthHeader());
                 alert(res.data.message);
                 this.showDetailModal = false;
-                this.fetchRequests(); // Refresh tabel utama
-                this.currentTab = 'completed'; // Pindah tab
+                this.fetchRequests();
+                this.currentTab = 'completed';
             } catch (err) {
                 alert(err.response?.data?.message || 'Gagal menyelesaikan serah terima.');
             }
