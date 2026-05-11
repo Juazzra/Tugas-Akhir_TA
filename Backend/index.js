@@ -35,3 +35,9 @@ app.get('/', (req, res) => {
 app.listen(port, () => {
     console.log(`Server jalan kencang di http://localhost:${port}`);
 });
+
+// Import route scanner
+const scannerRoutes = require('./src/routes/scanner');
+
+// Daftarkan endpoint-nya
+app.use('/api/scanner', scannerRoutes);
