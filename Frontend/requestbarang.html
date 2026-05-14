@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WMS - Test Multi-Item Foto & Approval</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 p-6 font-sans">
+
+<div id="app" class="max-w-6xl mx-auto">
+    <h1 class="text-2xl font-bold mb-6 text-center text-indigo-400">⚡ Pipa Pengujian Multi-Item & Bukti Foto WMS ⚡</h1>
+
+    <div v-if="!isLoggedIn" class="max-w-md mx-auto bg-slate-800 p-6 rounded-xl shadow-xl border border-slate-700">
+        <h2 class="text-lg font-bold mb-4 text-center">Masuk ke Sistem</h2>
+        <div v-if="errorMsg" class="bg-red-900/50 text-red-400 p-2 rounded mb-3 text-xs border border-red-800">{{ errorMsg }}</div>
+        <div class="mb-3"><label class="block text-xs uppercase font-bold text-slate-400 mb-1">NIK</label><input v-model="loginForm.nik" type="text" class="w-full bg-slate-700 border border-slate-600 p-2 rounded text-white"></div>
+        <div class="mb-4"><label class="block text-xs uppercase font-bold text-slate-400 mb-1">PIN</label><input v-model="loginForm.pin" type="password" class="w-full bg-slate-700 border border-slate-600 p-2 rounded text-white"></div>
+        <button @click="doLogin" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded shadow-lg transition">Log In</button>
+    </div>
+
+    <div v-else class="space-y-6">
+        <div class="bg-slate-800 p-4 rounded-xl flex justify-between items-center border border-slate-700">
+            <div>
+                <p class="text-sm font-bold text-indigo-300">{{ myProfile.nama }} ({{ myProfile.nik }})</p>
+                <p class="text-xs text-slate-400 uppercase tracking-wider font-semibold">Melihat Sisi: {{ myProfile.role }}</p>
+            </div>
+            <button @click="doLogout" class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1 rounded text-xs font-bold transition">Keluar Akun</button>
+        </div>
+
+        <div v-if="myProfile.role === 'karyawan'" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <div class="lg:col-span-5 bg-slate-800 p-5 rounded-xl border border-slate-700 space-y-4">
+                <h3 class="font-bold text-md text-indigo-400 border-b border-slate-700 pb-2">1. Siapkan Item Barang</h3>
+                
+                <div>
+                    <label class="block text-xs text-slate-400 font-bold mb-1">Pilih Barang:</label>
+                    <select v-model="itemForm.item_id" @change="updateSelectedStock" class="w-full bg-slate-700 border border-slate-600 p-2 rounded text-sm text-white">
+                        <option value="" disabled>-- Pilih Item Gudang --</option>
+                        <option v-for="i in items" :key="i.id" :value="i.id">{{ i.nama_barang }} (Stok: {{ i.stok_aktual }})</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs text-slate-400 font-bold mb-1">Jumlah Qty:</label>
+                        <input v-model="itemForm.jumlah" type="number" min="1" class="w-full bg-slate-700 border border-slate-600 p-2 rounded text-sm text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 font-bold mb-1">Stok Tersedia:</label>
+                        <input :value="selectedItemStock" type="text" disabled class="w-full bg-slate-800 border border-slate-700 p-2 rounded text-sm text-slate-500 font-bold text-center">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs text-slate-400 font-bold mb-1">Alasan Permintaan Item Ini:</label>
+                    <input v-model="itemForm.alasan" type="text" placeholder="Misal: Mouse lama klik kiri double" class="w-full bg-slate-700 border border-slate-600 p-2 rounded text-sm text-white">
+                </div>
+
+                <div>
+                    <label class="block text-xs text-slate-400 font-bold mb-1">Upload Foto Bukti Fisik Item Ini:</label>
+                    <input type="file" ref="fileInput" @change="encodeImageFile" accept="image/*" class="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer">
+                </div>
+
+                <div v-if="itemForm.foto_bukti" class="text-center bg-slate-900 p-2 rounded border border-slate-700">
+                    <p class="text-[11px] text-slate-400 mb-1">Preview Foto Item:</p>
+                    <img :src="itemForm.foto_bukti" class="max-h-24 mx-auto rounded border border-slate-600">
+                </div>
+
+                <button @click="addItemToCart" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded text-sm shadow transition">
+                    + Masukkan ke Keranjang Request
+                </button>
+            </div>
+
+            <div class="lg:col-span-7 bg-slate-800 p-5 rounded-xl border border-slate-700 flex flex-col justify-between">
+                <div>
+                    <h3 class="font-bold text-md text-emerald-400 border-b border-slate-700 pb-2 mb-4">🛒 Keranjang Belanja Request</h3>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead>
+                                <tr class="border-b border-slate-700 text-slate-400 text-xs">
+                                    <th class="pb-2">Barang</th>
+                                    <th class="pb-2 text-center">Qty</th>
+                                    <th class="pb-2">Alasan</th>
+                                    <th class="pb-2 text-center">Foto</th>
+                                    <th class="pb-2 text-right">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="(c, idx) in cart" :key="idx" class="border-b border-slate-700/50 text-xs">
+                                    <td class="py-3 font-semibold text-slate-200">{{ c.nama_barang }}</td>
+                                    <td class="py-3 text-center font-bold text-indigo-300">{{ c.jumlah }}</td>
+                                    <td class="py-3 text-slate-400 italic">"{{ c.alasan || '-' }}"</td>
+                                    <td class="py-3 text-center">
+                                        <img v-if="c.foto_bukti" :src="c.foto_bukti" class="w-8 h-8 object-cover mx-auto rounded border border-slate-600">
+                                        <span v-else class="text-slate-500">-</span>
+                                    </td>
+                                    <td class="py-3 text-right">
+                                        <button @click="cart.splice(idx, 1)" class="text-rose-400 font-bold hover:underline">Hapus</button>
+                                    </td>
+                                </tr>
+                                <tr v-if="cart.length === 0">
+                                    <td colspan="5" class="text-center py-10 text-slate-500 italic">Keranjang kosong. Tambahkan barang di sebelah kiri.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div v-if="cart.length > 0" class="pt-4 border-t border-slate-700 mt-6 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="w-full sm:max-w-xs">
+                            <label class="block text-xs font-bold text-slate-400 mb-1">Rencana Tanggal Pengambilan Nota Ini:</label>
+                            <input v-model="checkoutDate" type="date" class="w-full bg-slate-700 border border-slate-600 p-2 rounded text-sm text-white">
+                        </div>
+                        <button @click="submitBatchCheckout" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-lg text-sm tracking-wide shadow-md transition self-end">
+                            Kirim Semua Request (Checkout Paket)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="myProfile.role === 'admin'" class="bg-slate-800 p-6 rounded-xl border border-slate-700 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+                <h3 class="font-bold text-md text-amber-400">Meja Approval Admin (Terurai Per Item)</h3>
+                <button @click="fetchAdminRequests" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded text-xs">🔄 Refresh Tabel</button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-900 text-slate-400 text-xs uppercase tracking-wider font-bold">
+                            <th class="p-3">Nota ID / Karyawan</th>
+                            <th class="p-3">Detail Barang Requested</th>
+                            <th class="p-3 text-center">Qty</th>
+                            <th class="p-3 text-center">Foto Bukti Kerusakan Item</th>
+                            <th class="p-3">Status</th>
+                            <th class="p-3 text-right">Tindakan Nota</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="r in adminRequests" :key="r.id" class="border-b border-slate-700 hover:bg-slate-750/50">
+                            <td class="p-3">
+                                <span class="text-xs bg-slate-700 px-1.5 py-0.5 rounded text-slate-300 font-mono">ID: {{ r.id }}</span>
+                                <p class="font-semibold text-slate-200 mt-1">{{ r.nama_karyawan }}</p>
+                                <span class="text-[10px] text-slate-500">NIK: {{ r.nik }}</span>
+                            </td>
+                            <td class="p-3">
+                                <p class="font-bold text-indigo-300 text-sm">{{ r.nama_barang }}</p>
+                                <p class="text-xs text-slate-400 mt-0.5">Alasan: <span class="italic text-slate-300">"{{ r.alasan || '-' }}"</span></p>
+                                <p class="text-[11px] text-slate-500 mt-1">Plan Ambil: {{ r.tgl_pengambilan }}</p>
+                            </td>
+                            <td class="p-3 text-center font-bold text-md text-slate-200">{{ r.jumlah }}</td>
+                            <td class="p-3 text-center">
+                                <div v-if="r.foto_bukti">
+                                    <img :src="r.foto_bukti" @click="window.open(r.foto_bukti)" class="w-16 h-16 object-cover mx-auto rounded border border-slate-600 shadow cursor-pointer hover:scale-105 transition">
+                                    <span class="text-[9px] text-indigo-400 block mt-1 cursor-pointer">Klik Lihat Full</span>
+                                </div>
+                                <span v-else class="text-slate-600 italic text-xs">Tidak ada foto</span>
+                            </td>
+                            <td class="p-3">
+                                <span :class="{'bg-yellow-900/60 text-yellow-400 border-yellow-800': r.status === 'pending', 'bg-blue-900/60 text-blue-400 border-blue-800': r.status === 'approved', 'bg-red-900/60 text-red-400 border-red-800': r.status === 'rejected'}" class="px-2 py-0.5 rounded text-[10px] font-bold uppercase border">
+                                    {{ r.status }}
+                                </span>
+                            </td>
+                            <td class="p-3 text-right space-y-1">
+                                <button v-if="r.status === 'pending'" @click="changeStatus(r.id, 'approved')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded text-xs font-bold block w-full text-center transition">Approve Nota</button>
+                                <button v-if="r.status === 'pending'" @click="changeStatus(r.id, 'rejected')" class="bg-rose-600 hover:bg-rose-700 text-white px-2 py-1 rounded text-xs font-bold block w-full text-center transition">Reject Nota</button>
+                            </td>
+                        </tr>
+                        <tr v-if="adminRequests.length === 0"><td colspan="6" class="text-center p-8 text-slate-500">Belum ada request multi-item di database.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const { createApp } = Vue;
+const API_URL = 'http://localhost:3000/api';
+
+createApp({
+    data() {
+        return {
+            isLoggedIn: false, token: '', errorMsg: '', myProfile: {},
+            items: [], cart: [], adminRequests: [],
+            loginForm: { nik: '', pin: '' },
+            checkoutDate: '',
+            
+            // Penampung input form per item barang
+            itemForm: { item_id: '', jumlah: 1, alasan: '', foto_bukti: null, nama_barang: '' },
+            selectedItemStock: 0
+        }
+    },
+    mounted() {
+        const token = localStorage.getItem('wms_token');
+        if (token) { this.token = token; this.resumeSession(); }
+    },
+    methods: {
+        headers() { return { headers: { 'Authorization': `Bearer ${this.token}` } }; },
+        clear() { this.errorMsg = ''; },
+
+        async doLogin() {
+            this.clear();
+            try {
+                const res = await axios.post(`${API_URL}/users/login`, this.loginForm);
+                this.token = res.data.token;
+                localStorage.setItem('wms_token', this.token);
+                await this.resumeSession();
+            } catch (e) { this.errorMsg = 'Login Gagal! Periksa NIK & PIN.'; }
+        },
+        async resumeSession() {
+            try {
+                const res = await axios.get(`${API_URL}/users/me`, this.headers());
+                this.myProfile = res.data;
+                this.isLoggedIn = true;
+                
+                if (this.myProfile.role === 'karyawan') {
+                    this.fetchKaryawanItems();
+                } else if (this.myProfile.role === 'admin') {
+                    this.fetchAdminRequests();
+                }
+            } catch (e) { this.doLogout(); }
+        },
+        doLogout() { localStorage.removeItem('wms_token'); location.reload(); },
+
+        // --- MANAJEMEN KARYAWAN & SELEKSI BARANG ---
+        async fetchKaryawanItems() {
+            try {
+                const res = await axios.get(`${API_URL}/items`, this.headers());
+                this.items = res.data.data || res.data;
+            } catch (e) { alert("Gagal mengambil master item."); }
+        },
+        updateSelectedStock() {
+            const found = this.items.find(i => i.id === this.itemForm.item_id);
+            if (found) {
+                this.selectedItemStock = found.stok_aktual;
+                this.itemForm.nama_barang = found.nama_barang;
+            }
+        },
+        encodeImageFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => { this.itemForm.foto_bukti = ev.target.result; };
+            reader.readAsDataURL(file);
+        },
+        addItemToCart() {
+            if (!this.itemForm.item_id) return alert("Pilih barangnya dulu bos!");
+            if (this.itemForm.jumlah > this.selectedItemStock) return alert("Jumlah input melebihi stok aktual gudang!");
+            
+            // Dorong data objek item utuh ke dalam array keranjang
+            this.cart.push({ ...this.itemForm });
+            
+            // Reset form input item biar bisa input item kedua
+            this.itemForm = { item_id: '', jumlah: 1, alasan: '', foto_bukti: null, nama_barang: '' };
+            this.selectedItemStock = 0;
+            if (this.$refs.fileInput) this.$refs.fileInput.value = ''; // Clear slot input file harian
+        },
+        
+        // --- PROSES KIRIM MASSAL KE BACKEND CLOUD ---
+        async submitBatchCheckout() {
+            if (!this.checkoutDate) return alert("Pilih rencana tanggal pengambilan dulu!");
+            try {
+                const payload = {
+                    tgl_pengambilan: this.checkoutDate,
+                    keranjang: this.cart // Mengirim array berisikan banyak item sekaligus
+                };
+                
+                await axios.post(`${API_URL}/requests`, payload, this.headers());
+                alert(`Sukses besar! Paket request (${this.cart.length} item) berhasil dikirim ke Supabase Cloud.`);
+                
+                // Lap lapangan ujian
+                this.cart = [];
+                this.checkoutDate = '';
+                this.fetchKaryawanItems();
+            } catch (err) { alert(err.response?.data?.message || "Checkout gagal."); }
+        },
+
+        // --- SISTEM MONITORING ADMIN ---
+        async fetchAdminRequests() {
+            try {
+                const res = await axios.get(`${API_URL}/requests`, this.headers());
+                this.adminRequests = res.data;
+            } catch (e) { alert("Gagal memuat meja request admin."); }
+        },
+        async changeStatus(id, status) {
+            try {
+                await axios.put(`${API_URL}/requests/${id}/status`, { status }, this.headers());
+                this.fetchAdminRequests();
+            } catch (e) { alert("Gagal memproses status approval."); }
+        }
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

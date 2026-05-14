@@ -1,4 +1,4 @@
-1. Install Node.js, PostgreSQL, dan atur .env.
+1. Install Node.js, PostgreSQL, dan atur .env, requestController.js.
 
 2. Jalankan script SQL untuk membuat 7 Tabel dan memasukkan Master 18 Departemen (seperti yang kita lakukan sebelumnya).
 
@@ -9,3 +9,69 @@ Terminal akan memproses enkripsi dan memunculkan tulisan:
 NIK: ADMIN001 dan PIN: 123456
 
 4. nyalakan server (npm run dev atau node app.js).
+
+
+
+
+requestController.js (lokal)
+
+const fs = require('fs');
+const path = require('path');
+
+exports.createRequest = async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const { tgl_pengambilan, keranjang } = req.body;
+        const user_id = req.user.id;
+
+        // Pastikan folder lokal ada di PC Pabrik
+        const uploadDir = path.join(__dirname, '../../src/uploads/BuktiPenyerahan');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+        await client.query('BEGIN');
+
+        const headerResult = await client.query(
+            `INSERT INTO request_header (user_id, tgl_pengambilan, status) VALUES ($1, $2, 'pending') RETURNING id`, 
+            [user_id, tgl_pengambilan]
+        );
+        const request_id = headerResult.rows[0].id;
+
+        for (let item of keranjang) {
+            const checkStock = await client.query('SELECT stok_aktual, nama_barang FROM items WHERE id = $1', [item.item_id]);
+            if (checkStock.rows.length === 0) throw new Error(`Barang ID ${item.item_id} tidak ditemukan.`);
+            if (checkStock.rows[0].stok_aktual < item.jumlah) throw new Error(`Stok ${checkStock.rows[0].nama_barang} tidak cukup!`);
+
+            let namaFileSaja = null;
+
+            // UPLOAD LOKAL PC
+            if (item.foto_bukti && item.foto_bukti.startsWith('data:image')) {
+                const matches = item.foto_bukti.match(/^data:image\/([A-Za-z-+\/]+);base64,(.+)$/);
+                if (matches && matches.length === 3) {
+                    const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+                    const buffer = Buffer.from(matches[2], 'base64');
+                    
+                    namaFileSaja = `req_${request_id}_item_${item.item_id.substring(0,8)}_${Date.now()}.${ext}`;
+                    const filePath = path.join(uploadDir, namaFileSaja);
+                    
+                    // Simpan ke harddisk PC
+                    fs.writeFileSync(filePath, buffer);
+                }
+            }
+
+            // Simpan HANYA nama filenya saja (misal: req_123.jpg) bukan URL panjang
+            await client.query(
+                `INSERT INTO request_detail (request_id, item_id, jumlah, alasan, foto_bukti) VALUES ($1, $2, $3, $4, $5)`,
+                [request_id, item.item_id, item.jumlah, item.alasan || null, namaFileSaja]
+            );
+        }
+
+        await client.query('COMMIT');
+        res.status(201).json({ message: 'Request sukses (Lokal Mode)!', request_id });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error(err.message);
+        res.status(500).json({ message: err.message || 'Server error' });
+    } finally {
+        client.release();
+    }
+};

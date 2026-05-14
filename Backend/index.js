@@ -1,43 +1,33 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
-const pool = require('./src/config/db'); // Pastikan file ini juga udah dibikin dan di-save ya
+const path = require('path');
 
 const app = express();
-const port = process.env.PORT || 3000;
 
-app.use(cors()); // Ini akan mengizinkan Frontend kamu buat akses API ini
-app.use(express.json());
-
-// Middleware
+// Middleware Utama
 app.use(cors());
-app.use(express.json()); 
+app.use(express.json({ limit: '10mb' })); 
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-// routes items API
+// Route Imports
 const itemRoutes = require('./src/routes/itemRoutes');
-app.use('/api/items', itemRoutes);
-
-const requestRoutes = require('./src/routes/requestRoutes'); // Sesuaikan path
-
-// Daftarkan endpoint API
-app.use('/api/requests', requestRoutes);
-
-// routes users API
+const requestRoutes = require('./src/routes/requestRoutes');
 const userRoutes = require('./src/routes/userRoutes');
-app.use('/api/users', userRoutes);
-
-// Endpoint testing
-app.get('/', (req, res) => {
-    res.json({ message: 'Welcome to Road Work API!' });
-});
-
-// Jalankan server
-app.listen(port, () => {
-    console.log(`Server jalan kencang di http://localhost:${port}`);
-});
-
-// Import route scanner
 const scannerRoutes = require('./src/routes/scanner');
+const logRoutes = require('./src/routes/logRoutes');
 
-// Daftarkan endpoint-nya
+// Endpoint API
+app.use('/api/items', itemRoutes);
+app.use('/api/requests', requestRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/scanner', scannerRoutes);
+app.use('/api/inventory-logs', logRoutes);
+
+// Folder Statis (Tetap aktifkan untuk jaga-jaga file lain)
+app.use('/uploads', express.static(path.join(__dirname, 'src/uploads')));
+
+app.get('/', (req, res) => res.json({ message: 'WMS Cloud API Active' }));
+
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Server lari di port ${port}`));

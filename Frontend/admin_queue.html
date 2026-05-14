@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HRG Dashboard - Scanner Queue</title>
+    <!-- Pakai Bootstrap CDN biar UI langsung rapi -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>📦 Antrean Scanner Logistik (HRG)</h2>
+        <button class="btn btn-primary" onclick="loadQueue()">🔄 Refresh Data</button>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <table class="table table-hover align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Waktu Scan</th>
+                        <th>Barcode</th>
+                        <th>Nama Barang</th>
+                        <th>Mode Transaksi</th>
+                        <th>Aksi HRG</th>
+                    </tr>
+                </thead>
+                <tbody id="queueTableBody">
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">Memuat data...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'http://localhost:3000/api/scanner/queue'; // Sesuaikan port backend kamu
+
+    // Fungsi mengambil data dari API
+    async function loadQueue() {
+        const tbody = document.getElementById('queueTableBody');
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Memuat data...</td></tr>';
+
+        try {
+            const response = await fetch(API_URL);
+            const data = await response.json();
+
+            tbody.innerHTML = ''; // Kosongkan tabel
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-success fw-bold">Yeay! Tidak ada antrean.</td></tr>';
+                return;
+            }
+
+            // Looping data dan masukkan ke tabel
+            data.forEach(item => {
+                const dateObj = new Date(item.scanned_at);
+                const jamScan = dateObj.toLocaleTimeString('id-ID') + ' (' + dateObj.toLocaleDateString('id-ID') + ')';
+                
+                // Beri warna badge sesuai mode
+                const badgeMode = item.mode === 'IN' 
+                    ? `<span class="badge bg-success">📥 MASUK (Barcode)</span>`
+                    : `<span class="badge bg-danger">📤 KELUAR (RFID)</span>`;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${jamScan}</td>
+                    <td><span class="font-monospace">${item.barcode}</span></td>
+                    <td class="fw-bold">${item.nama_barang || 'Tidak Diketahui'}</td>
+                    <td>${badgeMode}</td>
+                    <td>
+                        <button class="btn btn-sm btn-success me-2" onclick="processQueue('${item.id}', 'APPROVE')">✅ Approve</button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="processQueue('${item.id}', 'REJECT')">❌ Reject</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (err) {
+            console.error(err);
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Gagal terhubung ke server (Pastikan Node.js menyala).</td></tr>';
+        }
+    }
+
+   // Bagian tombol di dalam fetch loadQueue() diubah agar mengirimkan mode:
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td>${jamScan}</td>
+        <td><span class="font-monospace">${item.barcode}</span></td>
+        <td class="fw-bold">${item.nama_barang || 'Tidak Diketahui'}</td>
+        <td>${badgeMode}</td>
+        <td>
+            <!-- Tambahkan item.mode ke dalam parameter fungsi -->
+            <button class="btn btn-sm btn-success me-2" onclick="processQueue('${item.id}', 'APPROVE', '${item.mode}')">✅ Approve</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="processQueue('${item.id}', 'REJECT', '${item.mode}')">❌ Reject</button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+
+    // ============================================
+
+    // Fungsi proses diubah untuk memunculkan prompt quantity
+    async function processQueue(id, action, mode) {
+        let qty = 1;
+
+        if (action === 'APPROVE' && mode === 'IN') {
+            // Jika mode masuk, minta HRG memasukkan jumlah barang
+            const inputQty = prompt('Berapa QTY barang yang masuk ke gudang?', '1');
+            if (inputQty === null) return; // Batal jika HRG klik Cancel
+
+            qty = parseInt(inputQty, 10);
+            if (isNaN(qty) || qty <= 0) {
+                alert('Quantity harus berupa angka valid di atas 0!');
+                return;
+            }
+        } else if (action === 'APPROVE' && mode === 'OUT') {
+            // Konfirmasi standar untuk barang keluar (qty otomatis 1)
+            if (!confirm('Approve barang KELUAR ini? (Stok akan otomatis berkurang 1)')) return;
+        } else if (action === 'REJECT') {
+            if (!confirm('Yakin ingin me-reject antrean ini?')) return;
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/${id}/process`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                // Kirim qty ke backend
+                body: JSON.stringify({ action: action, qty: qty }) 
+            });
+
+            const result = await response.json();
+            if (result.status === 'success') {
+                alert(`Sukses: ${result.message}`);
+                loadQueue(); // Refresh tabel otomatis
+            } else {
+                alert(`Gagal: ${result.error}`);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Terjadi kesalahan server.');
+        }
+    }
+</script>
+
+</body>
+</html>

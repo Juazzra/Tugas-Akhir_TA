@@ -1,76 +1,64 @@
+const fs = require('fs');
+const path = require('path');
 const pool = require('../config/db');
+const { createClient } = require('@supabase/supabase-js');
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
 // ==========================================
-// KARYAWAN: BUAT REQUEST BARANG (CHECKOUT KERANJANG)
+// KARYAWAN: BUAT REQUEST BARANG (CHECKOUT KERANJANG) (Foto Supabase)
 // ==========================================
 exports.createRequest = async (req, res) => {
-    // Memulai transaksi database
     const client = await pool.connect();
-
     try {
         const { tgl_pengambilan, keranjang } = req.body;
-        const user_id = req.user.id; // Didapat dari token JWT yang login
+        const user_id = req.user.id;
 
-        // Validasi input dasar
-        if (!keranjang || keranjang.length === 0) {
-            return res.status(400).json({ message: 'Keranjang tidak boleh kosong!' });
-        }
+        await client.query('BEGIN');
 
-        await client.query('BEGIN'); // Mulai Transaksi
-
-        // 1. Simpan ke tabel request_header
-        const headerQuery = `
-            INSERT INTO request_header (user_id, tgl_pengambilan, status) 
-            VALUES ($1, $2, 'pending') RETURNING id
-        `;
-        const headerResult = await client.query(headerQuery, [user_id, tgl_pengambilan]);
+        const headerResult = await client.query(
+            `INSERT INTO request_header (user_id, tgl_pengambilan, status) VALUES ($1, $2, 'pending') RETURNING id`, 
+            [user_id, tgl_pengambilan]
+        );
         const request_id = headerResult.rows[0].id;
 
-        // 2. Looping isi keranjang dan simpan ke request_detail
         for (let item of keranjang) {
-            // Cek stok aktual di database (Validasi Lapis Dua)
             const checkStock = await client.query('SELECT stok_aktual, nama_barang FROM items WHERE id = $1', [item.item_id]);
-            
-            if (checkStock.rows.length === 0) {
-                throw new Error(`Barang dengan ID ${item.item_id} tidak ditemukan.`);
+            if (checkStock.rows.length === 0) throw new Error(`Barang ID ${item.item_id} tidak ditemukan.`);
+            if (checkStock.rows[0].stok_aktual < item.jumlah) throw new Error(`Stok ${checkStock.rows[0].nama_barang} tidak cukup!`);
+
+            let finalPhotoUrl = null;
+
+            // UPLOAD CLOUD SUPABASE
+            if (item.foto_bukti && item.foto_bukti.startsWith('data:image')) {
+                console.log("URL Cloud:", process.env.SUPABASE_URL);
+                console.log("Service Key:", process.env.SUPABASE_SERVICE_KEY ? "Kunci Terbaca (Aman)" : "Kunci UNDEFINED (Kosong!)");
+                const base64Data = item.foto_bukti.split(',')[1];
+                const buffer = Buffer.from(base64Data, 'base64');
+                const contentType = item.foto_bukti.split(';')[0].split(':')[1];
+                
+                const filePath = `BuktiPenyerahan/req_${request_id}_item_${item.item_id.substring(0,8)}_${Date.now()}.jpg`;
+
+                const { error } = await supabase.storage.from('uploads').upload(filePath, buffer, { contentType, upsert: true });
+                if (error) throw error;
+
+                const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(filePath);
+                finalPhotoUrl = publicUrlData.publicUrl;
             }
 
-            const ketersediaan = checkStock.rows[0].stok_aktual;
-            if (ketersediaan < item.jumlah) {
-                throw new Error(`Stok ${checkStock.rows[0].nama_barang} tidak mencukupi! Sisa stok: ${ketersediaan}`);
-            }
-
-            // Jika stok aman, masukkan ke request_detail
-            const detailQuery = `
-                INSERT INTO request_detail (request_id, item_id, jumlah, alasan, foto_bukti) 
-                VALUES ($1, $2, $3, $4, $5)
-            `;
-            await client.query(detailQuery, [
-                request_id, 
-                item.item_id, 
-                item.jumlah, 
-                item.alasan || null, 
-                item.foto_bukti || null
-            ]);
+            await client.query(
+                `INSERT INTO request_detail (request_id, item_id, jumlah, alasan, foto_bukti) VALUES ($1, $2, $3, $4, $5)`,
+                [request_id, item.item_id, item.jumlah, item.alasan || null, finalPhotoUrl]
+            );
         }
 
-        await client.query('COMMIT'); // Simpan permanen jika semua sukses
-
-        res.status(201).json({
-            message: 'Request barang berhasil dikirim! Menunggu persetujuan Admin.',
-            request_id: request_id
-        });
-
+        await client.query('COMMIT');
+        res.status(201).json({ message: 'Request sukses (Cloud Mode)!', request_id });
     } catch (err) {
-        await client.query('ROLLBACK'); // Batalkan semua jika ada 1 saja yang error
+        await client.query('ROLLBACK');
         console.error(err.message);
-        // Jika error dari validasi stok buatan kita, kirim pesannya ke user
-        if (err.message.includes('Stok') || err.message.includes('tidak ditemukan')) {
-            return res.status(400).json({ message: err.message });
-        }
-        res.status(500).json({ message: 'Server error saat memproses request' });
+        res.status(500).json({ message: err.message || 'Server error' });
     } finally {
-        client.release(); // Kembalikan koneksi ke pool
+        client.release();
     }
 };
 
@@ -79,11 +67,21 @@ exports.createRequest = async (req, res) => {
 // ==========================================
 exports.getAllRequests = async (req, res) => {
     try {
-        // Menggabungkan data header dengan data user agar nama karyawan muncul
         const query = `
-            SELECT rh.id, rh.status, rh.tgl_pengambilan, rh.created_at, u.nama, u.nik 
+            SELECT 
+                rh.id, 
+                rh.status, 
+                rh.tgl_pengambilan, 
+                u.nama AS nama_karyawan, 
+                u.nik,
+                rd.jumlah,
+                rd.alasan,
+                rd.foto_bukti, -- FOTO BUKTI SEKARANG IKUT KETARIK
+                i.nama_barang
             FROM request_header rh
             JOIN users u ON rh.user_id = u.id
+            JOIN request_detail rd ON rh.id = rd.request_id
+            JOIN items i ON rd.item_id = i.id
             ORDER BY rh.created_at DESC
         `;
         const result = await pool.query(query);
@@ -251,5 +249,35 @@ exports.getRequestDetails = async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ message: 'Server error' });
+    }
+};
+
+exports.uploadBuktiPenyerahan = async (req, res) => {
+    try {
+        const requestId = req.params.id;
+        if (!req.file) return res.status(400).json({ error: 'File tidak ditemukan' });
+
+        // Multer memoryStorage memberikan kita 'buffer'
+        const buffer = req.file.buffer;
+        const fileName = `BuktiAdmin/admin_verify_${requestId}_${Date.now()}.jpg`;
+
+        // Upload ke Supabase Storage
+        const { error } = await supabase.storage
+            .from('uploads')
+            .upload(fileName, buffer, { contentType: req.file.mimetype });
+
+        if (error) throw error;
+
+        const publicUrl = supabase.storage.from('uploads').getPublicUrl(fileName).data.publicUrl;
+
+        // Update database dengan LINK CLOUD
+        await pool.query(
+            'UPDATE request_detail SET foto_bukti = $1 WHERE request_id = $2',
+            [publicUrl, requestId]
+        );
+
+        res.json({ status: 'success', url: publicUrl });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 };
