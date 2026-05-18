@@ -13,7 +13,7 @@ router.post('/login', userController.login);
 router.get('/me', verifyToken, userController.getMyProfile);
 router.put('/me', verifyToken, userController.updateMyProfile);
 router.put('/me/change-pin', verifyToken, userController.changeMyPin);
-
+router.post('/me/photo', verifyToken, userController.uploadFotoProfil);
 // ==========================================
 // AREA TERTUTUP (Khusus Admin)
 // ==========================================

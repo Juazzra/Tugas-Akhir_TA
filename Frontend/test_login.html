@@ -28,7 +28,7 @@
         </div>
         <div class="mb-6">
             <label class="block text-sm font-semibold mb-2">PIN</label>
-            <input v-model="loginForm.pin" type="password" class="w-full border p-2 rounded focus:outline-blue-500" placeholder="Masukkan PIN">
+            <input v-model="loginForm.pin" type="password" class="w-full border p-2 rounded focus:outline-blue-500" placeholder="Masukkan PIN" @keyup.enter="doLogin">
         </div>
         <button @click="doLogin" class="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700 transition">Login</button>
     </div>
@@ -40,9 +40,15 @@
         
         <!-- Header Global -->
         <div class="flex justify-between items-center mb-6 border-b pb-4">
-            <div>
-                <h2 class="text-2xl font-bold text-gray-700">Dashboard {{ myProfile.role === 'admin' ? 'Administrator' : 'Karyawan' }}</h2>
-                <p class="text-sm text-gray-500 mt-1">Selamat datang, <b>{{ myProfile.nama }}</b> ({{ myProfile.nik }})</p>
+            <div class="flex items-center gap-4">
+                <!-- Foto Profil Mini di Header -->
+                <img v-if="myProfile.foto_profil" :src="myProfile.foto_profil" class="w-12 h-12 rounded-full object-cover border border-gray-300 shadow-sm">
+                <div v-else class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold border border-gray-300">?</div>
+                
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-700">Dashboard {{ myProfile.role === 'admin' ? 'Administrator' : 'Karyawan' }}</h2>
+                    <p class="text-sm text-gray-500 mt-1">Selamat datang, <b>{{ myProfile.nama }}</b> ({{ myProfile.nik }})</p>
+                </div>
             </div>
             <button @click="doLogout" class="bg-red-500 text-white px-4 py-2 rounded text-sm hover:bg-red-600 font-bold transition">Logout</button>
         </div>
@@ -64,6 +70,7 @@
                 <table class="w-full border-collapse border border-gray-300 text-sm">
                     <thead>
                         <tr class="bg-gray-100">
+                            <th class="border p-2">Foto</th>
                             <th class="border p-2">NIK</th>
                             <th class="border p-2">Nama</th>
                             <th class="border p-2">Departemen</th>
@@ -73,6 +80,11 @@
                     </thead>
                     <tbody>
                         <tr v-for="user in users" :key="user.id" class="hover:bg-gray-50 text-center">
+                            <!-- Thumbnail Foto di Tabel Admin -->
+                            <td class="border p-2">
+                                <img v-if="user.foto_profil" :src="user.foto_profil" @click="window.open(user.foto_profil)" class="w-8 h-8 rounded-full mx-auto object-cover border cursor-pointer hover:scale-110 transition">
+                                <span v-else class="text-gray-400 text-xs">-</span>
+                            </td>
                             <td class="border p-2 font-mono">{{ user.nik }}</td>
                             <td class="border p-2">{{ user.nama }}</td>
                             <td class="border p-2">{{ user.departemen || '-' }}</td>
@@ -116,27 +128,44 @@
         <div v-if="myProfile.role === 'karyawan'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             <!-- Karyawan: Profil & Edit Leader -->
-            <div class="border rounded p-4 bg-gray-50">
+            <div class="border rounded p-5 bg-gray-50 shadow-sm">
                 <h3 class="font-bold text-lg mb-4 text-blue-800 border-b pb-2">Informasi Profil</h3>
-                <div class="mb-2"><span class="text-sm text-gray-500 w-24 inline-block">Nama</span>: <b>{{ myProfile.nama }}</b></div>
-                <div class="mb-2"><span class="text-sm text-gray-500 w-24 inline-block">Departemen</span>: <b>{{ myProfile.nama_dept || 'Belum diatur' }}</b></div>
+                
+                <div class="flex items-center gap-4 mb-4">
+                    <img v-if="myProfile.foto_profil" :src="myProfile.foto_profil" class="w-20 h-20 rounded-full object-cover border-2 border-blue-500 shadow">
+                    <div v-else class="w-20 h-20 rounded-full bg-gray-300 flex items-center justify-center text-gray-500 font-bold text-xl border-2 border-gray-400">?</div>
+                    
+                    <div class="flex-1">
+                        <div class="mb-1"><span class="text-sm text-gray-500 w-20 inline-block">Nama</span>: <b>{{ myProfile.nama }}</b></div>
+                        <div class="mb-1"><span class="text-sm text-gray-500 w-20 inline-block">Dept</span>: <b>{{ myProfile.nama_dept || 'Belum diatur' }}</b></div>
+                    </div>
+                </div>
+
+                <!-- Bagian Upload Foto Profil Baru -->
+                <div class="mb-4 p-3 bg-white border rounded">
+                    <label class="block text-xs font-bold text-gray-600 mb-1">Ganti Foto Profil</label>
+                    <input type="file" ref="fotoProfilInput" @change="handleFotoProfilChange" accept="image/*" class="w-full text-xs border p-1 rounded bg-gray-50 mb-2">
+                    <button v-if="profilePhotoBase64" @click="doUploadFotoProfil" class="w-full bg-green-600 text-white px-4 py-1.5 rounded text-sm hover:bg-green-700 font-bold transition">🚀 Simpan Foto Baru Ke Cloud</button>
+                </div>
                 
                 <hr class="my-4">
                 <label class="block text-sm font-semibold mb-1">Nama Leader Saat Ini</label>
-                <input v-model="myProfile.nama_leader" type="text" class="w-full border p-2 rounded text-sm mb-2">
-                <button @click="doUpdateLeader" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">Update Leader</button>
+                <div class="flex gap-2">
+                    <input v-model="myProfile.nama_leader" type="text" class="w-full border p-2 rounded text-sm">
+                    <button @click="doUpdateLeader" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 font-bold whitespace-nowrap">Update</button>
+                </div>
             </div>
 
             <!-- Karyawan: Ganti PIN -->
-            <div class="border rounded p-4 bg-gray-50">
+            <div class="border rounded p-5 bg-gray-50 shadow-sm h-fit">
                 <h3 class="font-bold text-lg mb-4 text-orange-600 border-b pb-2">Ganti PIN</h3>
                 <label class="block text-sm font-semibold mb-1">PIN Lama</label>
                 <input v-model="changePinForm.pin_lama" type="password" class="w-full border p-2 rounded text-sm mb-3">
                 
                 <label class="block text-sm font-semibold mb-1">PIN Baru</label>
-                <input v-model="changePinForm.pin_baru" type="password" class="w-full border p-2 rounded text-sm mb-3">
+                <input v-model="changePinForm.pin_baru" type="password" class="w-full border p-2 rounded text-sm mb-4">
                 
-                <button @click="doChangePin" class="bg-orange-500 text-white px-4 py-2 rounded text-sm hover:bg-orange-600">Simpan PIN Baru</button>
+                <button @click="doChangePin" class="bg-orange-500 text-white px-4 py-2 rounded text-sm font-bold hover:bg-orange-600 w-full">Simpan PIN Baru</button>
             </div>
 
         </div>
@@ -161,8 +190,8 @@
             </div>
 
             <div class="flex justify-end gap-2 mt-6">
-                <button @click="showEditModal = false" class="bg-gray-300 px-4 py-2 rounded text-sm">Batal</button>
-                <button @click="submitEdit" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">Simpan Perubahan</button>
+                <button @click="showEditModal = false" class="bg-gray-300 px-4 py-2 rounded text-sm font-bold">Batal</button>
+                <button @click="submitEdit" class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-bold hover:bg-blue-700">Simpan Perubahan</button>
             </div>
         </div>
     </div>
@@ -171,117 +200,124 @@
 
 <script>
 const { createApp } = Vue;
-
-// Base URL Backend API kita
 const API_URL = 'http://localhost:3000/api';
 
 createApp({
     data() {
         return {
-            isLoggedIn: false,
-            token: '',
-            currentMenu: 'list',
-            errorMessage: '',
-            globalError: '',
-            globalSuccess: '',
+            isLoggedIn: false, token: '', currentMenu: 'list',
+            errorMessage: '', globalError: '', globalSuccess: '',
             
-            // State Data
-            myProfile: {},
-            users: [],
-            
-            // Forms
+            myProfile: {}, users: [],
             loginForm: { nik: '', pin: '' },
             registerForm: { nik: '', pin: '', nama: '', departemen_id: null, nama_leader: '', tipe_karyawan: 'tetap', role: 'karyawan' },
             changePinForm: { pin_lama: '', pin_baru: '' },
             
-            // Edit Modal State
+            // State Untuk Foto Profil
+            profilePhotoBase64: null,
+            
             showEditModal: false,
             editForm: { id: '', nama: '', departemen_id: null, nama_leader: '', role: '', tipe_karyawan: 'tetap' }
         }
     },
-    // Hook mounted akan dijalankan otomatis saat halaman pertama kali dimuat/direload
     mounted() {
         this.checkLoginSession();
     },
     methods: {
-        setAuthHeader() {
-            return { headers: { 'Authorization': `Bearer ${this.token}` } };
-        },
-        clearMessages() {
-            this.errorMessage = ''; this.globalError = ''; this.globalSuccess = '';
-        },
+        setAuthHeader() { return { headers: { 'Authorization': `Bearer ${this.token}` } }; },
+        clearMessages() { this.errorMessage = ''; this.globalError = ''; this.globalSuccess = ''; },
         
-        // --- CEK SESI LOGIN DI LOKAL ---
         checkLoginSession() {
             const savedToken = localStorage.getItem('wms_road_token');
             const savedProfile = localStorage.getItem('wms_road_profile');
-            
             if (savedToken && savedProfile) {
-                // Jika data ditemukan di memori browser, langsung pulihkan state-nya
                 this.token = savedToken;
                 this.myProfile = JSON.parse(savedProfile);
                 this.isLoggedIn = true;
-
-                // Load data berdasarkan role
-                if(this.myProfile.role === 'admin') {
-                    this.fetchUsers();
-                }
+                if(this.myProfile.role === 'admin') this.fetchUsers();
             }
         },
 
-        // --- AUTENTIKASI ---
         async doLogin() {
             this.clearMessages();
             try {
                 const res = await axios.post(`${API_URL}/users/login`, this.loginForm);
                 this.token = res.data.token;
-                
-                // Setelah login, ambil profil untuk menentukan dia Admin atau Karyawan
                 await this.fetchMyProfile();
                 this.isLoggedIn = true;
-
-                // Simpan token dan profil ke localStorage agar tidak hilang saat reload
                 localStorage.setItem('wms_road_token', this.token);
                 localStorage.setItem('wms_road_profile', JSON.stringify(this.myProfile));
-
-                // Jika admin, load list karyawan
                 if(this.myProfile.role === 'admin') this.fetchUsers();
-
-            } catch (error) {
-                this.errorMessage = error.response?.data?.message || 'Gagal login.';
-            }
+            } catch (error) { this.errorMessage = error.response?.data?.message || 'Gagal login.'; }
         },
         doLogout() {
-            // Hapus data dari localStorage saat user benar-benar ingin keluar
             localStorage.removeItem('wms_road_token');
             localStorage.removeItem('wms_road_profile');
-            
-            // Me-reload halaman otomatis membersihkan semua state (mengembalikan ke tampilan login)
             location.reload();
         },
 
-        // --- FETCH DATA ---
         async fetchMyProfile() {
             try {
                 const res = await axios.get(`${API_URL}/users/me`, this.setAuthHeader());
                 this.myProfile = res.data;
-            } catch (error) {
-                // Jika token ternyata sudah expired/invalid di backend, paksa logout
-                if (error.response && error.response.status === 401) {
-                    this.doLogout();
-                }
-            }
+            } catch (error) { if (error.response?.status === 401) this.doLogout(); }
         },
         async fetchUsers() {
             try {
                 const res = await axios.get(`${API_URL}/users`, this.setAuthHeader());
                 this.users = res.data;
-            } catch (error) {
-                if (error.response && error.response.status === 401) {
-                    this.doLogout();
-                } else {
-                    this.globalError = 'Gagal mengambil daftar karyawan.';
-                }
+            } catch (error) { if (error.response?.status === 401) this.doLogout(); else this.globalError = 'Gagal mengambil daftar karyawan.'; }
+        },
+
+        // --- MANAJEMEN FOTO PROFIL ---
+        // --- MANAJEMEN FOTO PROFIL ---
+        handleFotoProfilChange(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => {
+                    // 1. Logika Matematika Crop Tengah 1:1
+                    const size = Math.min(img.width, img.height); // Cari sisi terpendek
+                    const startX = (img.width - size) / 2; // Titik potong X
+                    const startY = (img.height - size) / 2; // Titik potong Y
+
+                    // 2. Buat kanvas digital sebesar 1:1
+                    const canvas = document.createElement('canvas');
+                    canvas.width = size;
+                    canvas.height = size;
+                    const ctx = canvas.getContext('2d');
+
+                    // 3. Gambar hasil potongan ke dalam kanvas
+                    ctx.drawImage(img, startX, startY, size, size, 0, 0, size, size);
+
+                    // 4. Konversi kanvas jadi Base64 (Format JPEG, Kualitas 80%) biar enteng!
+                    this.profilePhotoBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+            
+            // Kosongkan input agar user bisa memilih file yang sama lagi kalau membatalkan
+            e.target.value = '';
+        },
+
+        async doUploadFotoProfil() {
+            this.clearMessages();
+            try {
+                const res = await axios.post(`${API_URL}/users/me/photo`, { foto_base64: this.profilePhotoBase64 }, this.setAuthHeader());
+                
+                this.globalSuccess = 'Foto profil berhasil di-upload dan disimpan ke Supabase!';
+                this.myProfile.foto_profil = res.data.foto_profil;
+                localStorage.setItem('wms_road_profile', JSON.stringify(this.myProfile));
+                
+                // Reset preview supaya tombol simpan hilang
+                this.profilePhotoBase64 = null;
+                
+            } catch (error) { 
+                this.globalError = error.response?.data?.message || 'Gagal mengupload foto profil.'; 
             }
         },
 
@@ -292,61 +328,43 @@ createApp({
                 await axios.post(`${API_URL}/users/register`, this.registerForm, this.setAuthHeader());
                 this.globalSuccess = 'Karyawan berhasil ditambahkan!';
                 this.registerForm = { nik: '', pin: '', nama: '', departemen_id: null, nama_leader: '', tipe_karyawan: 'tetap', role: 'karyawan' };
-                this.fetchUsers();
-                this.currentMenu = 'list';
-            } catch (error) {
-                this.globalError = error.response?.data?.message || 'Gagal mendaftar karyawan.';
-            }
+                this.fetchUsers(); this.currentMenu = 'list';
+            } catch (error) { this.globalError = error.response?.data?.message || 'Gagal mendaftar karyawan.'; }
         },
         openEditModal(user) {
-            this.editForm = { 
-                id: user.id, nama: user.nama, role: user.role, 
-                departemen_id: user.departemen_id, nama_leader: user.nama_leader, tipe_karyawan: user.tipe_karyawan 
-            };
+            this.editForm = { id: user.id, nama: user.nama, role: user.role, departemen_id: user.departemen_id, nama_leader: user.nama_leader, tipe_karyawan: user.tipe_karyawan };
             this.showEditModal = true;
         },
         async submitEdit() {
             this.clearMessages();
             try {
                 await axios.put(`${API_URL}/users/${this.editForm.id}`, this.editForm, this.setAuthHeader());
-                this.showEditModal = false;
-                this.globalSuccess = 'Data karyawan berhasil diupdate!';
-                this.fetchUsers();
-            } catch (error) {
-                this.globalError = 'Gagal mengupdate data.';
-            }
+                this.showEditModal = false; this.globalSuccess = 'Data karyawan berhasil diupdate!'; this.fetchUsers();
+            } catch (error) { this.globalError = 'Gagal mengupdate data.'; }
         },
         async doResetPin(id) {
-            if(!confirm('Yakin ingin mereset PIN karyawan ini menjadi 123456?')) return;
+            if(!confirm('Yakin mereset PIN menjadi 123456?')) return;
             this.clearMessages();
             try {
                 await axios.put(`${API_URL}/users/${id}/reset-pin`, {}, this.setAuthHeader());
-                this.globalSuccess = 'PIN berhasil di-reset menjadi 123456.';
-            } catch (error) {
-                this.globalError = 'Gagal mereset PIN.';
-            }
+                this.globalSuccess = 'PIN berhasil di-reset.';
+            } catch (error) { this.globalError = 'Gagal mereset PIN.'; }
         },
         async doSoftDelete(id) {
-            if (!confirm('Yakin ingin melakukan SOFT DELETE pada karyawan ini? Data akan ditandai sebagai tidak aktif.')) return;
+            if (!confirm('Yakin melakukan SOFT DELETE?')) return;
             this.clearMessages();
             try {
                 await axios.delete(`${API_URL}/users/${id}?type=soft`, this.setAuthHeader());
-                this.globalSuccess = 'Karyawan berhasil di-soft delete.';
-                this.fetchUsers(); 
-            } catch (error) {
-                this.globalError = error.response?.data?.message || 'Gagal melakukan soft delete.';
-            }
+                this.globalSuccess = 'Karyawan berhasil di-soft delete.'; this.fetchUsers(); 
+            } catch (error) { this.globalError = error.response?.data?.message || 'Gagal soft delete.'; }
         },
         async doHardDelete(id) {
-            if (!confirm('PERINGATAN! Ini akan menghapus data karyawan secara PERMANEN. Yakin ingin melanjutkan?')) return;
+            if (!confirm('PERINGATAN! Ini akan menghapus data secara PERMANEN.')) return;
             this.clearMessages();
             try {
                 await axios.delete(`${API_URL}/users/${id}?type=hard`, this.setAuthHeader());
-                this.globalSuccess = 'Karyawan berhasil dihapus secara permanen.';
-                this.fetchUsers(); 
-            } catch (error) {
-                this.globalError = error.response?.data?.message || 'Gagal menghapus karyawan secara permanen.';
-            }
+                this.globalSuccess = 'Karyawan berhasil dihapus permanen.'; this.fetchUsers(); 
+            } catch (error) { this.globalError = error.response?.data?.message || 'Gagal menghapus permanen.'; }
         },
 
         // --- FUNGSI KARYAWAN ---
@@ -355,12 +373,8 @@ createApp({
             try {
                 await axios.put(`${API_URL}/users/me`, { nama_leader: this.myProfile.nama_leader }, this.setAuthHeader());
                 this.globalSuccess = 'Nama Leader berhasil diupdate!';
-                
-                // Update juga data profile yang ada di localStorage
                 localStorage.setItem('wms_road_profile', JSON.stringify(this.myProfile));
-            } catch (error) {
-                this.globalError = 'Gagal update profil.';
-            }
+            } catch (error) { this.globalError = 'Gagal update profil.'; }
         },
         async doChangePin() {
             this.clearMessages();
@@ -368,9 +382,7 @@ createApp({
                 await axios.put(`${API_URL}/users/me/change-pin`, this.changePinForm, this.setAuthHeader());
                 this.globalSuccess = 'PIN rahasia berhasil diubah!';
                 this.changePinForm = { pin_lama: '', pin_baru: '' };
-            } catch (error) {
-                this.globalError = error.response?.data?.message || 'Gagal mengganti PIN.';
-            }
+            } catch (error) { this.globalError = error.response?.data?.message || 'Gagal mengganti PIN.'; }
         }
     }
 }).mount('#app')

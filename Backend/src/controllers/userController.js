@@ -1,6 +1,8 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
+const { createClient } = require('@supabase/supabase-js');
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
 // ==========================================
 // REGISTER KARYAWAN / ADMIN
@@ -96,7 +98,8 @@ exports.getAllUsers = async (req, res) => {
             SELECT 
                 u.id, 
                 u.nik, 
-                u.nama, 
+                u.nama,
+                u.foto_profil, 
                 d.nama_dept AS departemen, 
                 u.tipe_karyawan, 
                 u.role,
@@ -161,7 +164,7 @@ exports.resetPinByAdmin = async (req, res) => {
 exports.getMyProfile = async (req, res) => {
     try {
         const query = `
-            SELECT u.id, u.nik, u.nama, d.nama_dept, u.nama_leader, u.role 
+            SELECT u.id, u.nik, u.nama, u.foto_profil, d.nama_dept, u.nama_leader, u.role 
             FROM users u
             LEFT JOIN departments d ON u.departemen_id = d.id
             WHERE u.id = $1
@@ -241,5 +244,50 @@ exports.deleteUser = async (req, res) => {
             });
         }
         res.status(500).json({ message: 'Server error saat menghapus user' });
+    }
+};
+
+// ==========================================
+// KARYAWAN/ADMIN: UPLOAD FOTO PROFIL
+// ==========================================
+exports.uploadFotoProfil = async (req, res) => {
+    try {
+        const { foto_base64 } = req.body;
+        const user_id = req.user.id;
+
+        if (!foto_base64 || !foto_base64.startsWith('data:image')) {
+            return res.status(400).json({ message: 'Format foto tidak valid!' });
+        }
+
+        // 1. Ekstrak data Base64
+        const base64Data = foto_base64.split(',')[1];
+        const buffer = Buffer.from(base64Data, 'base64');
+        const contentType = foto_base64.split(';')[0].split(':')[1];
+        
+        // 2. Set lokasi file di Supabase (uploads > EmplyProfile)
+        const fileName = `EmplyProfile/profil_${user_id}_${Date.now()}.jpg`;
+
+        // 3. Upload ke Cloud
+        const { error } = await supabase.storage
+            .from('uploads')
+            .upload(fileName, buffer, { contentType, upsert: true });
+
+        if (error) throw error;
+
+        // 4. Dapatkan URL Publik
+        const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(fileName);
+        const finalPhotoUrl = publicUrlData.publicUrl;
+
+        // 5. Simpan URL ke database users
+        await pool.query('UPDATE users SET foto_profil = $1 WHERE id = $2', [finalPhotoUrl, user_id]);
+
+        res.json({ 
+            message: 'Foto profil berhasil diupdate!', 
+            foto_profil: finalPhotoUrl 
+        });
+
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Server error saat upload foto profil' });
     }
 };

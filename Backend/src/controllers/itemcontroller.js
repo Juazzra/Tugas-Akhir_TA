@@ -1,5 +1,6 @@
 const pool = require('../config/db');
-
+const { createClient } = require('@supabase/supabase-js');
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 // ==========================================
 // KARYAWAN & ADMIN: LIHAT BARANG (Paginasi & Search)
 // ==========================================
@@ -55,10 +56,12 @@ exports.getItemById = async (req, res) => {
     }
 };
 
-// Tambah barang baru (Khusus Admin)
+// ==========================================
+// ADMIN: TAMBAH BARANG BARU (+ FOTO)
+// ==========================================
 exports.createItem = async (req, res) => {
     try {
-        const { barcode, nama_barang, jenis, stok_aktual } = req.body;
+        const { barcode, nama_barang, jenis, stok_aktual, foto_base64 } = req.body;
 
         // Cek apakah barcode sudah ada
         const itemExist = await pool.query('SELECT * FROM items WHERE barcode = $1', [barcode]);
@@ -66,33 +69,70 @@ exports.createItem = async (req, res) => {
             return res.status(400).json({ message: 'Barcode sudah terdaftar untuk barang lain!' });
         }
 
+        let finalPhotoUrl = null;
+
+        // Jika Admin mengunggah foto barang
+        if (foto_base64 && foto_base64.startsWith('data:image')) {
+            const base64Data = foto_base64.split(',')[1];
+            const buffer = Buffer.from(base64Data, 'base64');
+            const contentType = foto_base64.split(';')[0].split(':')[1];
+            
+            // Simpan di direktori 'uploads/Items'
+            const fileName = `Items/item_${barcode}_${Date.now()}.jpg`;
+
+            const { error } = await supabase.storage.from('uploads').upload(fileName, buffer, { contentType, upsert: true });
+            if (error) throw error;
+            
+            finalPhotoUrl = supabase.storage.from('uploads').getPublicUrl(fileName).data.publicUrl;
+        }
+
         const newItem = await pool.query(
-            'INSERT INTO items (barcode, nama_barang, jenis, stok_aktual) VALUES ($1, $2, $3, $4) RETURNING *',
-            [barcode, nama_barang, jenis, stok_aktual || 0]
+            'INSERT INTO items (barcode, nama_barang, jenis, stok_aktual, foto_barang) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            [barcode, nama_barang, jenis, stok_aktual || 0, finalPhotoUrl]
         );
 
         res.status(201).json({
-            message: 'Barang berhasil ditambahkan!',
+            message: 'Barang beserta foto berhasil ditambahkan!',
             item: newItem.rows[0]
         });
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: 'Server error saat menambah barang' });
     }
 };
 
+// ==========================================
+// ADMIN: EDIT BARANG (+ UPDATE FOTO)
+// ==========================================
 exports.updateItem = async (req, res) => {
     try {
         const { id } = req.params;
-        const { barcode, nama_barang, jenis } = req.body;
+        const { barcode, nama_barang, jenis, foto_base64 } = req.body;
 
-        // Note: Stok tidak di-update di sini, stok berubah murni dari transaksi masuk/keluar
+        let finalPhotoUrl = null;
+
+        // Jika Admin mengganti foto barang saat proses edit
+        if (foto_base64 && foto_base64.startsWith('data:image')) {
+            const base64Data = foto_base64.split(',')[1];
+            const buffer = Buffer.from(base64Data, 'base64');
+            const contentType = foto_base64.split(';')[0].split(':')[1];
+            const fileName = `Items/item_update_${id}_${Date.now()}.jpg`;
+
+            const { error } = await supabase.storage.from('uploads').upload(fileName, buffer, { contentType, upsert: true });
+            if (error) throw error;
+            
+            finalPhotoUrl = supabase.storage.from('uploads').getPublicUrl(fileName).data.publicUrl;
+        }
+
+        // COALESCE digunakan agar jika finalPhotoUrl null (Admin tidak ganti foto), foto lama tetap dipertahankan
         const query = `
             UPDATE items 
-            SET barcode = $1, nama_barang = $2, jenis = $3, updated_at = CURRENT_TIMESTAMP 
-            WHERE id = $4 RETURNING *
+            SET barcode = $1, nama_barang = $2, jenis = $3, 
+                foto_barang = COALESCE($4, foto_barang), 
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE id = $5 RETURNING *
         `;
-        const result = await pool.query(query, [barcode, nama_barang, jenis, id]);
+        const result = await pool.query(query, [barcode, nama_barang, jenis, finalPhotoUrl, id]);
 
         if (result.rows.length === 0) return res.status(404).json({ message: 'Barang tidak ditemukan' });
         res.json({ message: 'Data barang berhasil diupdate!', data: result.rows[0] });
