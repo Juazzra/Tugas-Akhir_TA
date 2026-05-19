@@ -14,166 +14,236 @@
     
     <!-- LOGIN FORM -->
     <div v-if="!isLoggedIn" class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md mt-10 border-t-4 border-indigo-600">
-        <h2 class="text-2xl font-bold mb-6 text-center">Login Sistem Request</h2>
+        <h2 class="text-2xl font-bold mb-6 text-center">Login Sistem Gudang</h2>
         <div v-if="globalError" class="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">{{ globalError }}</div>
-        <div class="mb-4"><label class="block text-sm font-semibold mb-2">NIK</label><input v-model="loginForm.nik" type="text" class="w-full border p-2 rounded"></div>
-        <div class="mb-6"><label class="block text-sm font-semibold mb-2">PIN</label><input v-model="loginForm.pin" type="password" @keyup.enter="doLogin" class="w-full border p-2 rounded"></div>
-        <button @click="doLogin" class="w-full bg-indigo-600 text-white font-bold py-2 rounded hover:bg-indigo-700">Login</button>
+        <div class="mb-4"><label class="block text-sm font-semibold mb-2">NIK</label><input v-model="loginForm.nik" type="text" class="w-full border p-2 rounded focus:outline-indigo-500"></div>
+        <div class="mb-6"><label class="block text-sm font-semibold mb-2">PIN</label><input v-model="loginForm.pin" type="password" @keyup.enter="doLogin" class="w-full border p-2 rounded focus:outline-indigo-500"></div>
+        <button @click="doLogin" class="w-full bg-indigo-600 text-white font-bold py-2 rounded hover:bg-indigo-700 transition">Login</button>
     </div>
 
     <!-- DASHBOARD UTAMA -->
     <div v-else class="bg-white p-6 rounded-lg shadow-md mt-6">
-        <div class="flex justify-between items-center mb-6 border-b pb-4">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 gap-4">
             <div>
                 <h2 class="text-2xl font-bold text-gray-700">Menu {{ myProfile.role === 'admin' ? 'Gudang (Admin)' : 'Request (Karyawan)' }}</h2>
                 <p class="text-sm text-gray-500 mt-1">{{ myProfile.nama }} ({{ myProfile.nik }})</p>
             </div>
-            <button @click="doLogout" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 font-bold">Logout</button>
+            <button @click="doLogout" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 font-bold transition">Logout</button>
         </div>
 
-        <div v-if="globalError" class="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">{{ globalError }}</div>
-        <div v-if="globalSuccess" class="bg-green-100 text-green-700 p-3 rounded mb-4 text-sm">{{ globalSuccess }}</div>
+        <div v-if="globalError" class="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm font-medium">{{ globalError }}</div>
+        <div v-if="globalSuccess" class="bg-green-100 text-green-700 p-3 rounded mb-4 text-sm font-medium">{{ globalSuccess }}</div>
 
         <!-- NAVIGASI MENU -->
-        <div class="flex flex-wrap gap-4 mb-6">
-            <button @click="setMenu('katalog')" :class="currentMenu === 'katalog' ? 'bg-indigo-600 text-white' : 'bg-gray-200'" class="px-4 py-2 rounded font-semibold">Katalog Barang</button>
+        <div class="flex flex-wrap gap-3 mb-6">
+            <button @click="setMenu('katalog')" :class="currentMenu === 'katalog' ? 'bg-indigo-600 text-white shadow' : 'bg-gray-200 hover:bg-gray-300'" class="px-4 py-2 rounded font-semibold transition">Katalog Barang</button>
             
-            <button v-if="myProfile.role === 'admin'" @click="setMenu('tambah_barang'); resetItemForm()" :class="currentMenu === 'tambah_barang' ? 'bg-indigo-600 text-white' : 'bg-gray-200'" class="px-4 py-2 rounded font-semibold">Tambah Barang</button>
-            <button v-if="myProfile.role === 'admin'" @click="setMenu('daftar_request'); fetchRequests()" :class="currentMenu === 'daftar_request' ? 'bg-indigo-600 text-white' : 'bg-gray-200'" class="px-4 py-2 rounded font-semibold">Daftar Request</button>
-            <button v-if="myProfile.role === 'admin'" @click="setMenu('log_inventory'); fetchLogs()" :class="currentMenu === 'log_inventory' ? 'bg-indigo-600 text-white' : 'bg-gray-200'" class="px-4 py-2 rounded font-semibold">Log Inventori</button>
+            <template v-if="myProfile.role === 'admin'">
+                <button @click="setMenu('tambah_barang'); resetItemForm()" :class="currentMenu === 'tambah_barang' ? 'bg-indigo-600 text-white shadow' : 'bg-gray-200 hover:bg-gray-300'" class="px-4 py-2 rounded font-semibold transition">Tambah Barang Baru</button>
+                <button @click="setMenu('restock_in'); fetchRestockQueue()" :class="currentMenu === 'restock_in' ? 'bg-amber-500 text-white shadow' : 'bg-gray-200 hover:bg-gray-300'" class="px-4 py-2 rounded font-semibold transition relative flex items-center gap-2">
+                    Restock (IN)
+                    <span v-if="restockQueue.length > 0" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] animate-pulse">{{ restockQueue.length }}</span>
+                </button>
+                <button @click="setMenu('log_inventory'); fetchLogs()" :class="currentMenu === 'log_inventory' ? 'bg-indigo-600 text-white shadow' : 'bg-gray-200 hover:bg-gray-300'" class="px-4 py-2 rounded font-semibold transition">Log Inventori</button>
+            </template>
             
-            <button v-if="myProfile.role === 'karyawan'" @click="setMenu('keranjang')" :class="currentMenu === 'keranjang' ? 'bg-indigo-600 text-white' : 'bg-gray-200'" class="px-4 py-2 rounded font-semibold flex items-center gap-2">
-                Keranjang <span v-if="cart.length > 0" class="bg-red-500 text-white rounded-full px-2 py-0.5 text-xs">{{ cart.length }}</span>
-            </button>
+            <template v-if="myProfile.role === 'karyawan'">
+                <button @click="setMenu('keranjang')" :class="currentMenu === 'keranjang' ? 'bg-indigo-600 text-white shadow' : 'bg-gray-200 hover:bg-gray-300'" class="px-4 py-2 rounded font-semibold flex items-center gap-2 transition">
+                    Keranjang <span v-if="cart.length > 0" class="bg-red-500 text-white rounded-full px-2 py-0.5 text-xs">{{ cart.length }}</span>
+                </button>
+            </template>
         </div>
 
         <!-- MENU: KATALOG BARANG -->
         <div v-if="currentMenu === 'katalog'">
             <div class="flex gap-2 mb-6">
-                <input v-model="searchQuery" @keyup.enter="doSearch" type="text" class="w-full max-w-md border p-2 rounded" placeholder="Cari nama barang...">
-                <button @click="doSearch" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-bold">Cari</button>
+                <input v-model="searchQuery" @keyup.enter="doSearch" type="text" class="w-full max-w-md border-2 border-gray-200 p-2 rounded focus:border-indigo-500 outline-none" placeholder="Cari nama barang...">
+                <button @click="doSearch" class="bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700 font-bold transition">Cari</button>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div v-for="item in items" :key="item.id" class="border rounded bg-white overflow-hidden shadow-sm flex flex-col">
-                    <!-- FOTO BARANG (Rasio 1:1 via CSS Tailwind) -->
-                    <div class="w-full aspect-square bg-gray-100 border-b relative">
-                        <img v-if="item.foto_barang" :src="item.foto_barang" class="w-full h-full object-cover">
-                        <div v-else class="absolute inset-0 flex items-center justify-center text-gray-400 text-xs font-bold uppercase tracking-widest">No Photo</div>
+                <div v-for="item in items" :key="item.id" class="border border-gray-200 rounded-lg bg-white overflow-hidden shadow-sm flex flex-col hover:shadow-md transition group">
+                    <div class="w-full aspect-square bg-gray-50 border-b relative">
+                        <img v-if="item.foto_barang" :src="item.foto_barang" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                        <div v-else class="absolute inset-0 flex items-center justify-center text-gray-400 text-xs font-bold uppercase tracking-widest bg-gray-100">No Photo</div>
                     </div>
                     
                     <div class="p-4 flex flex-col flex-1 justify-between">
                         <div>
-                            <h3 class="font-bold text-md text-indigo-800 leading-tight">{{ item.nama_barang }}</h3>
-                            <p class="text-xs text-gray-500 mt-1">Kode: {{ item.barcode }}</p>
-                            <p class="text-xs text-gray-500">Jenis: {{ item.jenis }}</p>
-                            <p class="text-sm font-bold mt-2">Stok: <span :class="item.stok_aktual > 0 ? 'text-green-600' : 'text-red-600'">{{ item.stok_aktual }}</span></p>
+                            <h3 class="font-bold text-md text-indigo-800 leading-tight mb-1">{{ item.nama_barang }}</h3>
+                            <p class="text-[11px] text-gray-500 font-mono">Kode: {{ item.barcode }}</p>
+                            <p class="text-xs text-gray-500 mt-1">Jenis: {{ item.jenis }}</p>
+                            <div class="mt-2 p-2 bg-gray-50 rounded border border-gray-100 flex justify-between items-center">
+                                <span class="text-xs font-semibold text-gray-600">Sisa Stok:</span>
+                                <span :class="item.stok_aktual > 0 ? 'text-green-600' : 'text-red-600'" class="text-lg font-extrabold">{{ item.stok_aktual }}</span>
+                            </div>
                         </div>
                         
                         <div v-if="myProfile.role === 'karyawan'" class="mt-4">
-                            <button :disabled="item.stok_aktual <= 0" @click="openCartModal(item)" class="w-full bg-blue-500 text-white py-1.5 rounded text-sm hover:bg-blue-600 font-bold disabled:bg-gray-300 transition">
-                                {{ item.stok_aktual > 0 ? '+ Keranjang' : 'Stok Habis' }}
+                            <button :disabled="item.stok_aktual <= 0" @click="openCartModal(item)" class="w-full bg-blue-500 text-white py-2 rounded text-sm hover:bg-blue-600 font-bold disabled:bg-gray-300 disabled:cursor-not-allowed transition">
+                                {{ item.stok_aktual > 0 ? '+ Tambah ke Keranjang' : 'Stok Habis' }}
                             </button>
                         </div>
                         <div v-if="myProfile.role === 'admin'" class="mt-4 flex gap-2">
-                            <button @click="openEditItemModal(item)" class="w-1/2 bg-yellow-500 text-white py-1 rounded text-sm hover:bg-yellow-600 font-bold">Edit</button>
-                            <button @click="doDeleteItem(item.id)" class="w-1/2 bg-red-500 text-white py-1 rounded text-sm hover:bg-red-600 font-bold">Hapus</button>
+                            <button @click="openEditItemModal(item)" class="w-1/2 bg-amber-500 text-white py-1.5 rounded text-sm hover:bg-amber-600 font-bold transition">Edit Data</button>
+                            <button @click="doDeleteItem(item.id)" class="w-1/2 bg-red-500 text-white py-1.5 rounded text-sm hover:bg-red-600 font-bold transition">Hapus</button>
                         </div>
                     </div>
                 </div>
-                <div v-if="items.length === 0" class="col-span-full text-center py-10 text-gray-500 border rounded bg-gray-50">Barang tidak ditemukan.</div>
+                <div v-if="items.length === 0" class="col-span-full text-center py-12 text-gray-500 border-2 border-dashed rounded bg-gray-50 font-medium">Barang tidak ditemukan di katalog.</div>
             </div>
             
-            <div v-if="totalPages > 1" class="flex justify-center items-center gap-4 mt-8">
-                <button @click="changePage(currentPage - 1)" :disabled="currentPage === 1" class="px-4 py-2 bg-gray-200 rounded disabled:opacity-50">Prev</button>
-                <span class="font-semibold text-sm">Halaman {{ currentPage }} dari {{ totalPages }}</span>
-                <button @click="changePage(currentPage + 1)" :disabled="currentPage === totalPages" class="px-4 py-2 bg-gray-200 rounded disabled:opacity-50">Next</button>
+            <div v-if="totalPages > 1" class="flex justify-center items-center gap-4 mt-8 pb-4">
+                <button @click="changePage(currentPage - 1)" :disabled="currentPage === 1" class="px-4 py-2 bg-gray-200 rounded disabled:opacity-50 font-semibold hover:bg-gray-300">Prev</button>
+                <span class="font-semibold text-sm bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded">Hal {{ currentPage }} / {{ totalPages }}</span>
+                <button @click="changePage(currentPage + 1)" :disabled="currentPage === totalPages" class="px-4 py-2 bg-gray-200 rounded disabled:opacity-50 font-semibold hover:bg-gray-300">Next</button>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- MENU: REVIEW BARANG MASUK (IN) (DI-UPGRADE)-->
+        <!-- ========================================== -->
+        <div v-if="currentMenu === 'restock_in' && myProfile.role === 'admin'">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-lg text-amber-600 border-b-2 border-amber-500 pb-1 inline-block">Review Antrean Barang Masuk (IN)</h3>
+                <button @click="fetchRestockQueue" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1.5 rounded text-xs font-bold transition flex items-center gap-1">
+                    <span>🔄 Refresh Data</span>
+                </button>
+            </div>
+            
+            <div class="bg-amber-50 p-4 rounded-lg border border-amber-200 mb-6 text-sm text-amber-800">
+                <p>Scanner hanya mendeteksi jenis barang. <b>Silakan sesuaikan kolom QTY (Jumlah Aktual)</b> dengan jumlah fisik barang yang masuk sebelum memverifikasi.</p>
+            </div>
+
+            <div class="bg-white border rounded overflow-hidden shadow-sm mb-6">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-gray-50 border-b text-[11px] font-bold text-gray-600 uppercase">
+                        <tr>
+                            <th class="p-3">Waktu Scan (Terawal)</th>
+                            <th class="p-3">Nama Barang Master</th>
+                            <th class="p-3 text-center">Input Qty Fisik</th>
+                            <th class="p-3 text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(queue, index) in restockQueue" :key="index" class="border-b hover:bg-gray-50">
+                            <td class="p-3 text-xs text-gray-500 w-1/5">{{ new Date(queue.waktu_scan_pertama).toLocaleString('id-ID') }}</td>
+                            
+                            <!-- JIKA BARANG BELUM TERDAFTAR -->
+                            <template v-if="!queue.item_id">
+                                <td class="p-3">
+                                    <div class="flex items-center gap-3">
+                                        <span class="bg-red-100 text-red-600 font-bold px-2 py-1 rounded text-[10px] uppercase border border-red-200">Belum Terdaftar</span>
+                                        <span class="font-mono text-xs text-gray-600">Kode: {{ queue.barcode }}</span>
+                                    </div>
+                                </td>
+                                <td class="p-3 text-center">
+                                    <button @click="goToRegister(queue.barcode)" class="bg-indigo-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-indigo-700 shadow-sm transition whitespace-nowrap">
+                                        ➕ Daftarkan Barang Ini
+                                    </button>
+                                </td>
+                            </template>
+
+                            <!-- JIKA BARANG SUDAH TERDAFTAR -->
+                            <template v-else>
+                                <td class="p-3">
+                                    <span class="font-bold text-indigo-700 text-base block">{{ queue.nama_barang }}</span>
+                                    <span class="font-mono text-xs text-gray-500">Kode: {{ queue.barcode }}</span>
+                                </td>
+                                <td class="p-3">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <span class="text-xs font-bold text-gray-500 uppercase">Total Qty:</span>
+                                        <input v-model="queue.input_qty" type="number" min="1" class="border-2 border-amber-300 rounded p-2 w-24 text-center font-extrabold text-amber-700 text-lg focus:border-amber-500 outline-none bg-amber-50">
+                                    </div>
+                                </td>
+                            </template>
+
+                            <!-- TOMBOL REJECT PER BARCODE -->
+                            <td class="p-3 text-center">
+                                <button @click="rejectRestockItem(queue.barcode)" class="text-red-400 hover:text-red-600 font-bold p-2 transition bg-red-50 hover:bg-red-100 rounded-full" title="Tolak & Hapus Scan Ini">
+                                    ❌
+                                </button>
+                            </td>
+                        </tr>
+                        <tr v-if="restockQueue.length === 0">
+                            <td colspan="4" class="p-10 text-center text-gray-400 italic font-medium">Antrean kosong. Belum ada barang yang di-scan masuk.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Area Tombol Verifikasi (Hanya Aktif Jika Valid) -->
+            <div class="flex flex-col items-end" v-if="restockQueue.length > 0">
+                <p v-if="!canApproveRestock" class="text-[11px] text-red-500 font-bold mb-2 bg-red-50 p-2 rounded border border-red-100">
+                    *Tindakan terkunci. Pastikan semua barang sudah didaftarkan dan QTY lebih dari 0.
+                </p>
+                <button @click="approveRestockMassal" :disabled="!canApproveRestock" :class="canApproveRestock ? 'bg-emerald-600 hover:bg-emerald-700 shadow-md' : 'bg-gray-300 text-gray-500 cursor-not-allowed'" class="text-white px-8 py-3 rounded-lg font-bold transition text-sm">
+                    ✅ Verifikasi Fisik & Tambahkan ke Stok Gudang
+                </button>
             </div>
         </div>
 
         <!-- MENU: TAMBAH BARANG (ADMIN) -->
-        <div v-if="currentMenu === 'tambah_barang' && myProfile.role === 'admin'" class="max-w-2xl bg-gray-50 p-6 border rounded shadow-sm">
-            <h3 class="font-bold text-lg mb-4 text-indigo-800 border-b pb-2">Registrasi Barang Baru</h3>
+        <div v-if="currentMenu === 'tambah_barang' && myProfile.role === 'admin'" class="max-w-3xl bg-gray-50 p-6 border rounded-lg shadow-sm">
+            <h3 class="font-bold text-lg mb-4 text-indigo-800 border-b pb-2">Registrasi Entitas Barang Baru</h3>
             
-            <div class="flex flex-col md:flex-row gap-6">
-                <!-- Area Upload Foto Kotak -->
-                <div class="flex-shrink-0 text-center">
-                    <label class="block text-xs font-semibold mb-2">Foto Etalase (1:1)</label>
-                    <div class="relative group cursor-pointer" @click="$refs.addPhotoInput.click()">
-                        <img v-if="itemForm.foto_base64" :src="itemForm.foto_base64" class="w-40 h-40 rounded-lg object-cover border-4 border-indigo-100 shadow-md group-hover:opacity-75">
-                        <div v-else class="w-40 h-40 rounded-lg bg-gray-200 border-4 border-dashed border-gray-300 flex items-center justify-center text-gray-500 group-hover:bg-gray-300 transition">
-                            <span class="text-xs font-bold">+ Upload Foto</span>
+            <div class="flex flex-col md:flex-row gap-8">
+                <div class="flex-shrink-0 text-center md:w-1/3">
+                    <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-3">Foto Etalase (Otomatis 1:1)</label>
+                    <div class="relative group cursor-pointer w-full aspect-square max-w-[200px] mx-auto" @click="$refs.addPhotoInput.click()">
+                        <img v-if="itemForm.foto_base64" :src="itemForm.foto_base64" class="w-full h-full rounded-xl object-cover border-4 border-indigo-200 shadow-lg group-hover:opacity-80 transition">
+                        <div v-else class="w-full h-full rounded-xl bg-white border-4 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 group-hover:bg-gray-100 group-hover:border-indigo-300 transition">
+                            <span class="text-4xl mb-2">📸</span>
+                            <span class="text-xs font-bold uppercase">Klik Upload Foto</span>
                         </div>
                     </div>
                     <input type="file" ref="addPhotoInput" @change="e => handleItemPhotoChange(e, 'add')" accept="image/*" class="hidden">
-                    <p class="text-[10px] text-gray-400 mt-2">*Otomatis dipotong kotak</p>
                 </div>
 
-                <!-- Form Data -->
-                <div class="flex-grow space-y-3">
-                    <div><label class="text-xs font-semibold">Barcode / Kode</label><input v-model="itemForm.barcode" type="text" class="w-full border p-2 rounded text-sm bg-white"></div>
-                    <div><label class="text-xs font-semibold">Nama Barang</label><input v-model="itemForm.nama_barang" type="text" class="w-full border p-2 rounded text-sm bg-white"></div>
-                    <div><label class="text-xs font-semibold">Jenis / Kategori</label><input v-model="itemForm.jenis" type="text" class="w-full border p-2 rounded text-sm bg-white"></div>
-                    <div><label class="text-xs font-semibold">Stok Awal</label><input v-model="itemForm.stok_aktual" type="number" min="0" class="w-full border p-2 rounded text-sm bg-white"></div>
+                <div class="flex-grow space-y-4">
+                    <div>
+                        <label class="text-xs font-bold text-gray-600 uppercase">Barcode / Kode Produk <span class="text-red-500">*</span></label>
+                        <input v-model="itemForm.barcode" type="text" class="w-full border-2 border-gray-200 p-2.5 rounded focus:border-indigo-500 outline-none mt-1 font-mono text-sm" placeholder="Contoh: 899123456789">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-600 uppercase">Nama Barang <span class="text-red-500">*</span></label>
+                        <input v-model="itemForm.nama_barang" type="text" class="w-full border-2 border-gray-200 p-2.5 rounded focus:border-indigo-500 outline-none mt-1 text-sm" placeholder="Contoh: Helm Safety Merah">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs font-bold text-gray-600 uppercase">Kategori</label>
+                            <input v-model="itemForm.jenis" type="text" class="w-full border-2 border-gray-200 p-2.5 rounded focus:border-indigo-500 outline-none mt-1 text-sm" placeholder="Misal: APD">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-600 uppercase">Stok Awal</label>
+                            <input v-model="itemForm.stok_aktual" type="number" min="0" class="w-full border-2 border-gray-200 p-2.5 rounded focus:border-indigo-500 outline-none mt-1 text-sm text-center font-bold" placeholder="0">
+                        </div>
+                    </div>
                     
-                    <button @click="doCreateItem" class="w-full bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700 mt-2 transition">Simpan Barang Ke Database</button>
+                    <button @click="doCreateItem" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg hover:bg-indigo-700 mt-4 transition shadow-md">Simpan ke Database Master</button>
                 </div>
-            </div>
-        </div>
-
-        <!-- MENU: DAFTAR REQUEST (ADMIN) -->
-        <div v-if="currentMenu === 'daftar_request' && myProfile.role === 'admin'">
-            <h3 class="font-bold text-lg mb-4 text-indigo-800">Daftar Request Pengambilan Barang</h3>
-            <div class="overflow-x-auto bg-white border rounded">
-                <table class="w-full text-sm text-left">
-                    <thead class="bg-gray-100 border-b text-gray-600 uppercase text-[11px] font-bold">
-                        <tr>
-                            <th class="p-3">Tgl Ambil</th>
-                            <th class="p-3">Karyawan</th>
-                            <th class="p-3">Barang (Qty)</th>
-                            <th class="p-3 text-center">Foto Bukti Rusak</th>
-                            <th class="p-3 text-center">Status</th>
-                            <th class="p-3 text-right">Aksi Approval</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="req in requests" :key="req.id" class="border-b hover:bg-gray-50">
-                            <td class="p-3">{{ req.tgl_pengambilan }}</td>
-                            <td class="p-3 font-semibold">{{ req.nama_karyawan }} <br><span class="text-xs text-gray-400 font-normal">{{ req.nik }}</span></td>
-                            <td class="p-3">{{ req.nama_barang }} <br><span class="text-xs font-bold text-indigo-600">Qty: {{ req.jumlah }}</span></td>
-                            <td class="p-3 text-center">
-                                <img v-if="req.foto_bukti" :src="req.foto_bukti" @click="window.open(req.foto_bukti)" class="w-12 h-12 mx-auto rounded border cursor-pointer hover:scale-110 transition object-cover">
-                                <span v-else class="text-gray-400 italic text-xs">No Photo</span>
-                            </td>
-                            <td class="p-3 text-center">
-                                <span :class="statusClass(req.status)" class="px-2 py-1 rounded text-[10px] font-bold uppercase">{{ req.status }}</span>
-                            </td>
-                            <td class="p-3 text-right space-x-1">
-                                <button v-if="req.status === 'pending'" @click="updateRequestStatus(req.id, 'approved')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-bold">Approve</button>
-                                <button v-if="req.status === 'pending'" @click="updateRequestStatus(req.id, 'rejected')" class="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">Reject</button>
-                                <span v-if="req.status !== 'pending'" class="text-gray-400 text-xs italic">Selesai</span>
-                            </td>
-                        </tr>
-                        <tr v-if="requests.length === 0"><td colspan="6" class="p-10 text-center text-gray-500">Belum ada request masuk.</td></tr>
-                    </tbody>
-                </table>
             </div>
         </div>
 
         <!-- MENU: LOG INVENTORI (ADMIN) -->
         <div v-if="currentMenu === 'log_inventory' && myProfile.role === 'admin'">
-            <h3 class="font-bold text-lg mb-4 text-indigo-800">Log Keluar Masuk Barang</h3>
-            <div class="bg-white border rounded overflow-hidden">
+            <h3 class="font-bold text-lg mb-4 text-indigo-800 border-b-2 border-indigo-200 pb-1 inline-block">Log Keluar Masuk Barang (Historis)</h3>
+            <div class="bg-white border rounded overflow-hidden shadow-sm">
                 <table class="w-full text-sm text-left">
-                    <thead class="bg-gray-100 border-b text-[11px] font-bold text-gray-600 uppercase">
-                        <tr><th class="p-3">Waktu</th><th class="p-3">Barang</th><th class="p-3 text-center">Tipe</th><th class="p-3 text-center">Qty</th></tr>
+                    <thead class="bg-gray-50 border-b text-[11px] font-bold text-gray-600 uppercase">
+                        <tr><th class="p-3">Waktu Transaksi</th><th class="p-3">Nama Barang</th><th class="p-3 text-center">Arah</th><th class="p-3 text-center">Jumlah (Qty)</th><th class="p-3 text-right">Oleh (PIC)</th></tr>
                     </thead>
                     <tbody>
                         <tr v-for="log in inventoryLogs" :key="log.id" class="border-b hover:bg-gray-50">
-                            <td class="p-3">{{ new Date(log.created_at).toLocaleString('id-ID') }}</td>
-                            <td class="p-3 font-semibold">{{ log.nama_barang }}</td>
-                            <td class="p-3 text-center font-bold" :class="log.tipe_transaksi === 'IN' ? 'text-green-600' : 'text-red-600'">{{ log.tipe_transaksi }}</td>
-                            <td class="p-3 text-center">{{ log.qty }}</td>
+                            <td class="p-3 text-xs text-gray-500">{{ new Date(log.created_at).toLocaleString('id-ID') }}</td>
+                            <td class="p-3 font-semibold text-slate-700">{{ log.nama_barang }}</td>
+                            <td class="p-3 text-center">
+                                <span :class="log.tipe_transaksi === 'IN' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'" class="px-2 py-0.5 rounded text-[10px] font-extrabold border">{{ log.tipe_transaksi }}</span>
+                            </td>
+                            <td class="p-3 text-center font-bold" :class="log.tipe_transaksi === 'IN' ? 'text-green-600' : 'text-red-600'">
+                                {{ log.tipe_transaksi === 'IN' ? '+' : '-' }} {{ log.qty }}
+                            </td>
+                            <td class="p-3 text-right text-xs">{{ log.pic_admin || 'System' }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -182,90 +252,108 @@
 
         <!-- MENU: KERANJANG (KARYAWAN) -->
         <div v-if="currentMenu === 'keranjang' && myProfile.role === 'karyawan'">
-            <div v-if="cart.length > 0" class="bg-gray-50 p-4 border rounded mb-6">
-                <table class="w-full text-sm mb-4">
-                    <thead><tr class="border-b"><th class="text-left py-2">Barang</th><th class="text-center py-2">Qty</th><th class="text-left py-2">Alasan</th><th class="py-2 text-center">Bukti</th><th class="py-2 text-right">Aksi</th></tr></thead>
-                    <tbody>
-                        <tr v-for="(cartItem, index) in cart" :key="index" class="border-b">
-                            <td class="py-2 font-semibold">{{ cartItem.nama_barang }}</td>
-                            <td class="py-2 text-center font-bold">{{ cartItem.jumlah }}</td>
-                            <td class="py-2 italic text-gray-600">{{ cartItem.alasan || '-' }}</td>
-                            <td class="py-2 text-center">
-                                <img v-if="cartItem.foto_bukti" :src="cartItem.foto_bukti" class="w-8 h-8 rounded border mx-auto object-cover">
-                                <span v-else class="text-gray-400">-</span>
-                            </td>
-                            <td class="py-2 text-right"><button @click="removeFromCart(index)" class="text-red-500 font-bold hover:underline">Hapus</button></td>
-                        </tr>
-                    </tbody>
-                </table>
-                <div class="border-t pt-4 flex flex-col sm:flex-row gap-4 justify-between items-end">
-                    <div class="w-full sm:max-w-xs">
-                        <label class="block text-sm font-semibold mb-1">Rencana Ambil:</label>
-                        <input v-model="checkoutDate" type="date" class="border p-2 rounded w-full">
+            <div v-if="cart.length > 0" class="bg-white p-6 border rounded-xl shadow-sm mb-6">
+                <h3 class="font-bold text-lg mb-4 text-indigo-800 border-b pb-2">Keranjang Pengambilan Barang</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm mb-6">
+                        <thead class="bg-gray-50 text-gray-600 uppercase text-[10px] font-bold border-y">
+                            <tr><th class="text-left py-3 px-2">Nama Barang</th><th class="text-center py-3">Qty</th><th class="text-left py-3">Alasan (Opsional)</th><th class="py-3 text-center">Bukti Foto</th><th class="py-3 text-right px-2">Aksi</th></tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            <tr v-for="(cartItem, index) in cart" :key="index" class="hover:bg-gray-50">
+                                <td class="py-3 px-2 font-bold text-slate-700">{{ cartItem.nama_barang }}</td>
+                                <td class="py-3 text-center font-extrabold text-indigo-600">{{ cartItem.jumlah }}</td>
+                                <td class="py-3 italic text-gray-500 text-xs">{{ cartItem.alasan || '-' }}</td>
+                                <td class="py-3 text-center">
+                                    <img v-if="cartItem.foto_bukti" :src="cartItem.foto_bukti" class="w-10 h-10 rounded border mx-auto object-cover shadow-sm">
+                                    <span v-else class="text-gray-300">-</span>
+                                </td>
+                                <td class="py-3 text-right px-2"><button @click="removeFromCart(index)" class="text-red-500 font-bold hover:bg-red-50 px-2 py-1 rounded transition">Batal</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="bg-indigo-50 p-4 rounded-lg flex flex-col md:flex-row gap-4 justify-between items-center border border-indigo-100">
+                    <div class="w-full md:w-auto flex-grow max-w-sm">
+                        <label class="block text-xs font-bold text-indigo-800 uppercase tracking-wider mb-2">Rencana Tanggal Pengambilan:</label>
+                        <input v-model="checkoutDate" type="date" class="border-2 border-indigo-200 p-2.5 rounded-lg w-full focus:border-indigo-500 outline-none text-sm font-bold text-gray-700">
                     </div>
-                    <button @click="doCheckout" class="bg-indigo-600 text-white px-6 py-2 rounded font-bold hover:bg-indigo-700 w-full sm:w-auto h-10 shadow">Checkout Sekarang</button>
+                    <button @click="doCheckout" class="bg-indigo-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-indigo-700 w-full md:w-auto shadow-md transition whitespace-nowrap mt-4 md:mt-0">
+                        Kirim Request Sekarang
+                    </button>
                 </div>
             </div>
-            <div v-else class="text-center py-10 text-gray-500 border rounded bg-gray-50 shadow-sm">Keranjang kosong. Pilih barang dari katalog.</div>
+            <div v-else class="text-center py-16 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 flex flex-col items-center">
+                <span class="text-5xl mb-4">🛒</span>
+                <p class="text-gray-500 font-medium">Keranjang masih kosong.</p>
+                <button @click="setMenu('katalog')" class="mt-4 text-indigo-600 font-bold hover:underline">Kembali ke Katalog</button>
+            </div>
         </div>
     </div>
 
-    <!-- ======================================================= -->
     <!-- MODAL EDIT BARANG (ADMIN) -->
-    <!-- ======================================================= -->
-    <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white p-6 rounded-lg w-full max-w-lg shadow-xl">
-            <h3 class="font-bold text-lg mb-4 border-b pb-2">Edit Barang: {{ editForm.nama_barang }}</h3>
+    <div v-if="showEditModal" class="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+        <div class="bg-white p-6 md:p-8 rounded-xl w-full max-w-2xl shadow-2xl">
+            <h3 class="font-bold text-xl mb-6 border-b border-gray-100 pb-4 text-slate-800">Edit Data: {{ editForm.nama_barang }}</h3>
             
-            <div class="flex flex-col sm:flex-row gap-6">
-                <!-- Foto Edit Area -->
-                <div class="flex-shrink-0 text-center">
-                    <div class="relative group cursor-pointer" @click="$refs.editPhotoInput.click()">
-                        <!-- Tampilkan Base64 (jika baru diubah) ATAU foto_barang dari DB -->
-                        <img v-if="editForm.foto_base64 || editForm.foto_barang" :src="editForm.foto_base64 || editForm.foto_barang" class="w-32 h-32 rounded-lg object-cover border-4 border-indigo-100 shadow">
-                        <div v-else class="w-32 h-32 rounded-lg bg-gray-200 border-4 border-dashed border-gray-300 flex items-center justify-center text-gray-500 group-hover:bg-gray-300 transition">
-                            <span class="text-xs font-bold">+ Foto (1:1)</span>
+            <div class="flex flex-col md:flex-row gap-8">
+                <div class="flex-shrink-0 text-center w-full md:w-1/3">
+                    <label class="block text-xs font-bold text-gray-500 mb-2 uppercase">Ubah Foto (1:1)</label>
+                    <div class="relative group cursor-pointer w-full aspect-square max-w-[180px] mx-auto" @click="$refs.editPhotoInput.click()">
+                        <img v-if="editForm.foto_base64 || editForm.foto_barang" :src="editForm.foto_base64 || editForm.foto_barang" class="w-full h-full rounded-xl object-cover border-4 border-amber-100 shadow-md">
+                        <div v-else class="w-full h-full rounded-xl bg-gray-100 border-4 border-dashed border-gray-300 flex items-center justify-center text-gray-400">
+                            <span class="text-xs font-bold uppercase">Kosong</span>
                         </div>
-                        <div class="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><span class="text-white text-xs font-bold uppercase">Ubah</span></div>
+                        <div class="absolute inset-0 bg-black bg-opacity-50 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><span class="text-white text-xs font-bold uppercase tracking-widest">Ubah</span></div>
                     </div>
                     <input type="file" ref="editPhotoInput" @change="e => handleItemPhotoChange(e, 'edit')" accept="image/*" class="hidden">
                 </div>
 
-                <!-- Form Edit Data -->
-                <div class="flex-grow space-y-3">
-                    <div><label class="text-xs font-semibold">Barcode / Kode</label><input v-model="editForm.barcode" type="text" class="w-full border p-2 rounded text-sm"></div>
-                    <div><label class="text-xs font-semibold">Nama Barang</label><input v-model="editForm.nama_barang" type="text" class="w-full border p-2 rounded text-sm"></div>
-                    <div><label class="text-xs font-semibold">Jenis / Kategori</label><input v-model="editForm.jenis" type="text" class="w-full border p-2 rounded text-sm"></div>
+                <div class="flex-grow space-y-4">
+                    <div><label class="text-xs font-bold text-gray-500 uppercase">Barcode / Kode</label><input v-model="editForm.barcode" type="text" class="w-full border-2 border-gray-200 p-2.5 rounded-lg text-sm focus:border-amber-500 outline-none mt-1 font-mono"></div>
+                    <div><label class="text-xs font-bold text-gray-500 uppercase">Nama Barang</label><input v-model="editForm.nama_barang" type="text" class="w-full border-2 border-gray-200 p-2.5 rounded-lg text-sm focus:border-amber-500 outline-none mt-1"></div>
+                    <div><label class="text-xs font-bold text-gray-500 uppercase">Jenis / Kategori</label><input v-model="editForm.jenis" type="text" class="w-full border-2 border-gray-200 p-2.5 rounded-lg text-sm focus:border-amber-500 outline-none mt-1"></div>
                 </div>
             </div>
 
-            <div class="flex justify-end gap-2 mt-6">
-                <button @click="showEditModal = false" class="bg-gray-300 px-4 py-2 rounded font-bold text-sm">Batal</button>
-                <button @click="doUpdateItem" class="bg-blue-600 text-white px-4 py-2 rounded font-bold text-sm hover:bg-blue-700">Simpan Perubahan</button>
+            <div class="flex justify-end gap-3 mt-8 border-t border-gray-100 pt-6">
+                <button @click="showEditModal = false" class="bg-gray-100 text-gray-600 px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-gray-200 transition">Batal</button>
+                <button @click="doUpdateItem" class="bg-amber-500 text-white px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-amber-600 shadow-md transition">Simpan Perubahan</button>
             </div>
         </div>
     </div>
 
     <!-- MODAL ADD TO CART (KARYAWAN) -->
-    <div v-if="showCartModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white p-6 rounded-lg w-full max-w-sm shadow-xl">
-            <h3 class="font-bold text-lg mb-4 text-indigo-800">Request: {{ selectedItem?.nama_barang }}</h3>
-            <div class="mb-3"><label class="text-sm font-semibold">Qty</label><input v-model="cartForm.jumlah" type="number" min="1" class="w-full border p-2 rounded"></div>
-            <div class="mb-3"><label class="text-sm font-semibold">Alasan Rusak (Opsional)</label><input v-model="cartForm.alasan" type="text" class="w-full border p-2 rounded"></div>
+    <div v-if="showCartModal" class="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+        <div class="bg-white p-6 md:p-8 rounded-xl w-full max-w-md shadow-2xl">
+            <h3 class="font-extrabold text-xl mb-2 text-indigo-800 leading-tight">{{ selectedItem?.nama_barang }}</h3>
+            <p class="text-xs text-gray-500 border-b pb-4 mb-4">Sisa Stok Gudang: <span class="font-bold text-indigo-600">{{ selectedItem?.stok_aktual }}</span></p>
             
-            <div class="mb-4 text-center border p-3 rounded bg-gray-50">
-                <label class="block text-xs font-bold text-gray-500 mb-2">Upload Bukti Fisik Rusak</label>
-                <!-- Karyawan foto bukti -->
-                <div class="relative group cursor-pointer inline-block" @click="$refs.buktiInput.click()">
-                    <img v-if="cartForm.foto_bukti" :src="cartForm.foto_bukti" class="w-24 h-24 object-cover rounded shadow">
-                    <div v-else class="w-24 h-24 border-2 border-dashed border-gray-400 bg-white rounded flex items-center justify-center text-3xl text-gray-400 group-hover:bg-gray-100">+</div>
+            <div class="mb-4">
+                <label class="text-xs font-bold text-gray-600 uppercase">Jumlah Diminta <span class="text-red-500">*</span></label>
+                <input v-model="cartForm.jumlah" type="number" min="1" :max="selectedItem?.stok_aktual" class="w-full border-2 border-gray-200 p-2.5 rounded-lg mt-1 font-bold text-lg text-center focus:border-indigo-500 outline-none">
+            </div>
+            <div class="mb-5">
+                <label class="text-xs font-bold text-gray-600 uppercase">Keterangan / Alasan Rusak</label>
+                <input v-model="cartForm.alasan" type="text" class="w-full border-2 border-gray-200 p-2.5 rounded-lg mt-1 text-sm focus:border-indigo-500 outline-none" placeholder="Contoh: Helm lama retak di proyek">
+            </div>
+            
+            <div class="mb-6 text-center bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-3">Upload Foto Fisik Barang Lama (Jika Ada)</label>
+                <div class="relative group cursor-pointer inline-block w-28 h-28" @click="$refs.buktiInput.click()">
+                    <img v-if="cartForm.foto_bukti" :src="cartForm.foto_bukti" class="w-full h-full object-cover rounded-lg shadow-md border-2 border-white">
+                    <div v-else class="w-full h-full border-2 border-dashed border-gray-300 bg-white rounded-lg flex flex-col items-center justify-center text-gray-400 group-hover:bg-indigo-50 group-hover:border-indigo-300 group-hover:text-indigo-500 transition">
+                        <span class="text-2xl mb-1">📸</span>
+                        <span class="text-[10px] font-bold">PILIH FOTO</span>
+                    </div>
                 </div>
                 <input type="file" ref="buktiInput" @change="handleFotoBuktiChange" accept="image/*" class="hidden">
             </div>
 
-            <div class="flex justify-end gap-2">
-                <button @click="showCartModal = false" class="bg-gray-300 px-4 py-2 rounded text-sm font-bold">Batal</button>
-                <button @click="confirmAddToCart" class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-bold">Masuk Keranjang</button>
+            <div class="flex justify-between gap-3 pt-4 border-t border-gray-100">
+                <button @click="showCartModal = false" class="bg-gray-100 text-gray-600 px-4 py-3 rounded-lg text-sm font-bold w-1/3 hover:bg-gray-200 transition">Batal</button>
+                <button @click="confirmAddToCart" class="bg-indigo-600 text-white px-4 py-3 rounded-lg text-sm font-bold w-2/3 shadow-md hover:bg-indigo-700 transition">Masukkan Keranjang</button>
             </div>
         </div>
     </div>
@@ -282,19 +370,14 @@ createApp({
             isLoggedIn: false, token: '', currentMenu: 'katalog',
             globalError: '', globalSuccess: '', myProfile: {},
             
-            // State Katalog & Paginasi
             items: [], searchQuery: '', currentPage: 1, totalPages: 1, limit: 8,
             
-            // State Request/Cart
             cart: [], checkoutDate: '',
-            requests: [], inventoryLogs: [],
+            requests: [], inventoryLogs: [], restockQueue: [],
             
             loginForm: { nik: '', pin: '' },
-            
-            // Form Untuk Tambah Barang (Admin)
             itemForm: { barcode: '', nama_barang: '', jenis: '', stok_aktual: 0, foto_base64: null },
             
-            // Modals & Edit Form
             showCartModal: false, selectedItem: null, cartForm: { jumlah: 1, alasan: '', foto_bukti: null },
             showEditModal: false, editForm: { id: '', barcode: '', nama_barang: '', jenis: '', foto_barang: null, foto_base64: null }
         }
@@ -306,19 +389,25 @@ createApp({
             this.resumeSession(); 
         }
     },
+    computed: {
+        canApproveRestock() {
+            if (this.restockQueue.length === 0) return false;
+            const hasUnregistered = this.restockQueue.some(q => !q.item_id);
+            if (hasUnregistered) return false;
+            const hasInvalidQty = this.restockQueue.some(q => !q.input_qty || q.input_qty <= 0);
+            if (hasInvalidQty) return false;
+            return true;
+        }
+    },
     methods: {
         setAuthHeader() { return { headers: { 'Authorization': `Bearer ${this.token}` } }; },
         clearMsg() { this.globalError = ''; this.globalSuccess = ''; },
-        setMenu(menu) { this.currentMenu = menu; this.clearMsg(); },
-        
-        statusClass(st) {
-            if (st === 'pending') return 'bg-yellow-100 text-yellow-700 border border-yellow-200';
-            if (st === 'approved') return 'bg-blue-100 text-blue-700 border border-blue-200';
-            if (st === 'completed') return 'bg-green-100 text-green-700 border border-green-200';
-            return 'bg-red-100 text-red-700 border border-red-200';
+        setMenu(menu) { 
+            this.currentMenu = menu; 
+            this.clearMsg();
+            if(menu === 'restock_in') this.fetchRestockQueue();
         },
 
-        // --- AUTENTIKASI ---
         async doLogin() {
             this.clearMsg();
             try {
@@ -334,11 +423,11 @@ createApp({
                 this.myProfile = res.data;
                 this.isLoggedIn = true;
                 this.fetchItems(); 
+                if(this.myProfile.role === 'admin') this.fetchRestockQueueSilently();
             } catch (e) { this.doLogout(); }
         },
         doLogout() { localStorage.removeItem('wms_token'); location.reload(); },
 
-        // --- MANAJEMEN BARANG (KATALOG) ---
         async fetchItems(page = 1) {
             this.clearMsg();
             try {
@@ -352,54 +441,45 @@ createApp({
         doSearch() { this.fetchItems(1); },
         changePage(page) { if(page >= 1 && page <= this.totalPages) this.fetchItems(page); },
 
-        // --- ENGINE FOTO CANVAS 1:1 (UNTUK ADMIN ITEM) ---
         handleItemPhotoChange(e, target) {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = (ev) => {
                 const img = new Image();
                 img.onload = () => {
-                    const size = Math.min(img.width, img.height); // Ambil sisi terkecil untuk rasio 1:1
+                    const size = Math.min(img.width, img.height);
                     const startX = (img.width - size) / 2;
                     const startY = (img.height - size) / 2;
-
                     const canvas = document.createElement('canvas');
                     canvas.width = size; canvas.height = size;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, startX, startY, size, size, 0, 0, size, size);
-
-                    // Kompres jadi JPEG 80%
                     const base64Str = canvas.toDataURL('image/jpeg', 0.8);
-                    
                     if (target === 'add') this.itemForm.foto_base64 = base64Str;
                     if (target === 'edit') this.editForm.foto_base64 = base64Str;
                 };
                 img.src = ev.target.result;
             };
             reader.readAsDataURL(file);
-            e.target.value = ''; // Reset input
+            e.target.value = '';
         },
 
-        // --- FUNGSI ADMIN BARANG ---
         resetItemForm() {
             this.itemForm = { barcode: '', nama_barang: '', jenis: '', stok_aktual: 0, foto_base64: null };
         },
         async doCreateItem() {
             this.clearMsg();
-            if(!this.itemForm.barcode || !this.itemForm.nama_barang) return this.globalError = "Lengkapi form barang!";
+            if(!this.itemForm.barcode || !this.itemForm.nama_barang) return this.globalError = "Lengkapi form barcode dan nama barang!";
             try {
                 await axios.post(`${API_URL}/items`, this.itemForm, this.setAuthHeader());
                 this.globalSuccess = 'Barang berhasil ditambahkan!';
                 this.resetItemForm();
+                this.setMenu('restock_in');
             } catch (err) { this.globalError = err.response?.data?.message || 'Gagal tambah barang.'; }
         },
         openEditItemModal(item) {
-            this.editForm = { 
-                id: item.id, barcode: item.barcode, nama_barang: item.nama_barang, 
-                jenis: item.jenis, foto_barang: item.foto_barang, foto_base64: null 
-            };
+            this.editForm = { id: item.id, barcode: item.barcode, nama_barang: item.nama_barang, jenis: item.jenis, foto_barang: item.foto_barang, foto_base64: null };
             this.showEditModal = true;
         },
         async doUpdateItem() {
@@ -419,40 +499,89 @@ createApp({
             } catch (err) { alert('Gagal menghapus barang'); }
         },
 
-        // --- ADMIN REQUEST & LOGS ---
-        async fetchRequests() {
+        async fetchRestockQueueSilently() {
             try {
-                const res = await axios.get(`${API_URL}/requests`, this.setAuthHeader());
-                this.requests = res.data;
-            } catch (e) { this.globalError = 'Gagal mengambil daftar request'; }
+                const res = await axios.get(`${API_URL}/items/restock/queue`, this.setAuthHeader());
+                this.restockQueue = res.data.map(q => ({ ...q, input_qty: parseInt(q.jumlah_masuk) || 1 }));
+            } catch (e) {}
         },
-        async fetchLogs() {
+        async fetchRestockQueue() {
+            this.clearMsg();
             try {
-                const res = await axios.get(`${API_URL}/inventory-logs`, this.setAuthHeader());
+                const res = await axios.get(`${API_URL}/items/restock/queue`, this.setAuthHeader());
+                this.restockQueue = res.data.map(q => ({ ...q, input_qty: parseInt(q.jumlah_masuk) || 1 }));
+            } catch (e) { this.globalError = 'Gagal mengambil antrean barang masuk.'; }
+        },
+        
+        goToRegister(barcode) {
+            this.setMenu('tambah_barang');
+            this.resetItemForm();
+            this.itemForm.barcode = barcode; 
+            this.itemForm.stok_aktual = 0; 
+        },
+
+        // --- FUNGSI REJECT PER BARCODE ---
+        async rejectRestockItem(barcode) {
+            if(!confirm(`Yakin ingin menolak dan menghapus antrean scan untuk kode ${barcode}?`)) return;
+            this.clearMsg();
+            try {
+                const res = await axios.post(`${API_URL}/items/restock/reject`, { barcode }, this.setAuthHeader());
+                this.globalSuccess = res.data.message;
+                this.fetchRestockQueue(); // Refresh tabel setelah hapus
+            } catch (e) {
+                this.globalError = e.response?.data?.message || 'Gagal menghapus antrean.';
+            }
+        },
+
+        async approveRestockMassal() {
+            if(!confirm("Verifikasi Selesai? Jumlah stok di gudang akan langsung bertambah sesuai angka yang Anda input.")) return;
+            this.clearMsg();
+            try {
+                const payload = {
+                    items_to_approve: this.restockQueue.map(q => ({
+                        barcode: q.barcode,
+                        qty: q.input_qty
+                    }))
+                };
+
+                const res = await axios.post(`${API_URL}/items/restock/approve`, payload, this.setAuthHeader());
+                this.globalSuccess = res.data.message;
+                this.fetchRestockQueue(); 
+            } catch (e) { 
+                this.globalError = e.response?.data?.message || 'Gagal memproses restock.'; 
+            }
+        },
+
+        async fetchLogs() {
+            this.clearMsg();
+            try {
+                const res = await axios.get(`${API_URL}/items/logs`, this.setAuthHeader());
                 this.inventoryLogs = res.data.data || res.data;
             } catch (e) { this.globalError = 'Gagal mengambil log inventori'; }
         },
-        async updateRequestStatus(id, st) {
-            if(!confirm(`Yakin mengubah status request ini menjadi ${st.toUpperCase()}?`)) return;
-            try {
-                await axios.put(`${API_URL}/requests/${id}/status`, { status: st }, this.setAuthHeader());
-                this.fetchRequests();
-            } catch (e) { alert("Gagal update status"); }
-        },
 
-        // --- KARYAWAN: KERANJANG & CHECKOUT ---
         handleFotoBuktiChange(e) {
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = (ev) => { this.cartForm.foto_bukti = ev.target.result; };
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => {
+                    const size = Math.min(img.width, img.height);
+                    const startX = (img.width - size) / 2;
+                    const startY = (img.height - size) / 2;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = size; canvas.height = size;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, startX, startY, size, size, 0, 0, size, size);
+                    this.cartForm.foto_bukti = canvas.toDataURL('image/jpeg', 0.6);
+                };
+                img.src = ev.target.result;
+            };
             reader.readAsDataURL(file);
+            e.target.value = '';
         },
-        openCartModal(item) { 
-            this.selectedItem = item; 
-            this.cartForm = { jumlah: 1, alasan: '', foto_bukti: null }; 
-            this.showCartModal = true; 
-        },
+        openCartModal(item) { this.selectedItem = item; this.cartForm = { jumlah: 1, alasan: '', foto_bukti: null }; this.showCartModal = true; },
         confirmAddToCart() {
             if(this.cartForm.jumlah > this.selectedItem.stok_aktual) return alert("Stok tidak cukup!");
             this.cart.push({ ...this.cartForm, item_id: this.selectedItem.id, nama_barang: this.selectedItem.nama_barang });
@@ -463,7 +592,7 @@ createApp({
             if(!this.checkoutDate) return alert("Pilih tanggal pengambilan!");
             try {
                 await axios.post(`${API_URL}/requests`, { tgl_pengambilan: this.checkoutDate, keranjang: this.cart }, this.setAuthHeader());
-                this.globalSuccess = 'Request Berhasil Dikirim!';
+                this.globalSuccess = 'Request Berhasil Dikirim ke Admin!';
                 this.cart = [];
                 this.setMenu('katalog');
                 this.fetchItems();

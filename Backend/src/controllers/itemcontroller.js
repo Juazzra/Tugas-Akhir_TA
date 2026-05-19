@@ -171,7 +171,7 @@ exports.getInventoryLogs = async (req, res) => {
         const totalItems = parseInt(countResult.rows[0].count);
 
         const query = `
-            SELECT il.id, il.created_at, i.nama_barang, il.tipe_transaksi, il.qty, u.nama AS pic_admin
+            SELECT il.id, (il.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta') AS created_at, i.nama_barang, il.tipe_transaksi, il.qty, u.nama AS pic_admin
             FROM inventory_logs il
             JOIN items i ON il.item_id = i.id
             LEFT JOIN users u ON il.user_id = u.id
@@ -188,5 +188,108 @@ exports.getInventoryLogs = async (req, res) => {
         });
     } catch (err) {
         res.status(500).json({ message: 'Server error saat ambil logs' });
+    }
+};
+
+// ==========================================
+// ADMIN: LIHAT ANTREAN BARANG MASUK (MODE IN)
+// ==========================================
+exports.getRestockQueue = async (req, res) => {
+    try {
+        // Query ini akan otomatis mengelompokkan barang yang di-scan berkali-kali
+        // Contoh: Helm Merah discan 5x -> Hasilnya langsung terhitung Qty: 5
+        const query = `
+            SELECT 
+                sq.barcode, 
+                i.id AS item_id,
+                i.nama_barang, 
+                COUNT(sq.id) AS jumlah_masuk,
+                MIN(sq.scanned_at) AS waktu_scan_pertama
+            FROM scanner_queue sq
+            LEFT JOIN items i ON sq.barcode = i.barcode
+            WHERE sq.status = 'PENDING' AND sq.mode = 'IN'
+            GROUP BY sq.barcode, i.id, i.nama_barang
+            ORDER BY waktu_scan_pertama ASC
+        `;
+        const result = await pool.query(query);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Error getRestockQueue:", err.message);
+        res.status(500).json({ message: 'Gagal mengambil antrean barang masuk' });
+    }
+};
+
+// ==========================================
+// ADMIN: EKSEKUSI ANTREAN (APPROVE RESTOCK KUSTOM QTY)
+// ==========================================
+exports.approveRestock = async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const { items_to_approve } = req.body; 
+        const admin_id = req.user.id;
+
+        if (!items_to_approve || items_to_approve.length === 0) {
+            throw new Error('Tidak ada data barang untuk disubmit.');
+        }
+
+        await client.query('BEGIN');
+        
+        const processedBarcodes = []; // Array untuk menampung barcode yang sukses diproses
+
+        for (let item of items_to_approve) {
+            const updateRes = await client.query(
+                'UPDATE items SET stok_aktual = stok_aktual + $1 WHERE barcode = $2 RETURNING id',
+                [item.qty, item.barcode]
+            );
+            
+            if (updateRes.rows.length > 0) {
+                await client.query(
+                    `INSERT INTO inventory_logs (item_id, user_id, tipe_transaksi, qty, referensi_id) 
+                     VALUES ($1, $2, 'IN', $3, NULL)`,
+                    [updateRes.rows[0].id, admin_id, item.qty]
+                );
+                // Masukkan barcode ini ke daftar sukses
+                processedBarcodes.push(item.barcode); 
+            }
+        }
+
+        // PERBAIKAN: Ubah jadi 'APPROVED', TAPI HANYA untuk barcode yang barusan disubmit dari UI
+        if (processedBarcodes.length > 0) {
+            await client.query(
+                "UPDATE scanner_queue SET status = 'APPROVED' WHERE status = 'PENDING' AND mode = 'IN' AND barcode = ANY($1)",
+                [processedBarcodes]
+            );
+        }
+
+        await client.query('COMMIT');
+        res.json({ message: 'Restock Fisik Berhasil! Stok gudang telah bertambah.' });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error("Error approveRestock:", err.message);
+        res.status(400).json({ message: err.message });
+    } finally {
+        client.release();
+    }
+};
+
+// ==========================================
+// ADMIN: TOLAK/HAPUS ANTREAN SALAH SCAN (PER BARCODE)
+// ==========================================
+exports.rejectRestock = async (req, res) => {
+    try {
+        const { barcode } = req.body; // Menerima barcode spesifik dari UI
+        
+        if (!barcode) return res.status(400).json({ message: 'Barcode diperlukan' });
+
+        // Mengubah status jadi 'REJECTED' HANYA pada barcode yang diklik
+        await pool.query(
+            "UPDATE scanner_queue SET status = 'REJECTED' WHERE status = 'PENDING' AND mode = 'IN' AND barcode = $1",
+            [barcode]
+        );
+        res.json({ message: `Scan untuk kode ${barcode} berhasil dihapus dari antrean.` });
+    } catch (err) {
+        console.error("Error rejectRestock:", err.message);
+        res.status(500).json({ message: 'Server error saat menolak antrean.' });
     }
 };
