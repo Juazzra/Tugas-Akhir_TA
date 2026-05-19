@@ -3,138 +3,184 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WMS - Approval & Handover</title>
+    <title>WMS - Meja Approval & Status</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans p-6">
+<body class="bg-slate-50 text-slate-800 font-sans p-6">
 
 <div id="app" class="max-w-6xl mx-auto">
     
     <!-- LOGIN FORM -->
-    <div v-if="!isLoggedIn" class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md mt-10 border-t-4 border-teal-600">
-        <h2 class="text-2xl font-bold mb-6 text-center">Login Sistem Serah Terima</h2>
-        <div v-if="globalError" class="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">{{ globalError }}</div>
-        <div class="mb-4"><label class="text-sm font-semibold mb-2">NIK</label><input v-model="loginForm.nik" type="text" class="w-full border p-2 rounded"></div>
-        <div class="mb-6"><label class="text-sm font-semibold mb-2">PIN</label><input v-model="loginForm.pin" type="password" class="w-full border p-2 rounded"></div>
-        <button @click="doLogin" class="w-full bg-teal-600 text-white font-bold py-2 rounded hover:bg-teal-700">Login</button>
+    <div v-if="!isLoggedIn" class="max-w-md mx-auto bg-white p-8 rounded-xl shadow-lg mt-10 border-t-4 border-teal-500">
+        <h2 class="text-2xl font-bold mb-6 text-center text-slate-700">Portal Status & Approval</h2>
+        <div v-if="globalError" class="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm border border-red-200">{{ globalError }}</div>
+        <div class="mb-4"><label class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2 block">NIK Karyawan</label><input v-model="loginForm.nik" type="text" class="w-full border-2 border-slate-200 p-3 rounded-lg focus:border-teal-500 outline-none transition"></div>
+        <div class="mb-6"><label class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2 block">PIN Rahasia</label><input v-model="loginForm.pin" type="password" @keyup.enter="doLogin" class="w-full border-2 border-slate-200 p-3 rounded-lg focus:border-teal-500 outline-none transition"></div>
+        <button @click="doLogin" class="w-full bg-teal-600 text-white font-bold py-3 rounded-lg hover:bg-teal-700 transition shadow-md">Masuk Sistem</button>
     </div>
 
     <!-- DASHBOARD -->
-    <div v-else class="bg-white p-6 rounded-lg shadow-md mt-6">
-        <div class="flex justify-between items-center mb-6 border-b pb-4">
+    <div v-else class="bg-white p-6 md:p-8 rounded-xl shadow-lg mt-6">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-6 gap-4">
             <div>
-                <h2 class="text-2xl font-bold text-gray-700">Monitor Request & Serah Terima</h2>
-                <p class="text-sm text-gray-500 mt-1">{{ myProfile.nama }} | Role: <span class="uppercase font-bold">{{ myProfile.role }}</span></p>
+                <h2 class="text-2xl font-extrabold text-slate-800">{{ myProfile.role === 'admin' ? 'Meja Approval Admin' : 'Lacak Status Request Anda' }}</h2>
+                <p class="text-sm text-slate-500 mt-1 font-medium">{{ myProfile.nama }} ({{ myProfile.nik }})</p>
             </div>
-            <button @click="doLogout" class="bg-red-500 text-white px-4 py-2 rounded font-bold hover:bg-red-600">Logout</button>
+            <button @click="doLogout" class="bg-rose-100 text-rose-600 px-5 py-2 rounded-lg font-bold hover:bg-rose-200 transition">Logout</button>
         </div>
 
         <!-- Notifikasi -->
-        <div v-if="globalError" class="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">{{ globalError }}</div>
-        <div v-if="globalSuccess" class="bg-green-100 text-green-700 p-3 rounded mb-4 text-sm">{{ globalSuccess }}</div>
+        <div v-if="globalError" class="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-medium border border-red-200">{{ globalError }}</div>
+        <div v-if="globalSuccess" class="bg-emerald-50 text-emerald-700 p-3 rounded-lg mb-4 text-sm font-medium border border-emerald-200">{{ globalSuccess }}</div>
 
         <!-- FILTER TAB -->
-        <div class="flex gap-4 mb-6">
-            <button @click="setTab('pending')" :class="currentTab === 'pending' ? 'bg-teal-600 text-white' : 'bg-gray-200'" class="px-4 py-2 rounded font-semibold">Menunggu (Pending)</button>
-            <button @click="setTab('approved')" :class="currentTab === 'approved' ? 'bg-blue-600 text-white' : 'bg-gray-200'" class="px-4 py-2 rounded font-semibold">Siap Diambil (Approved)</button>
-            <button @click="setTab('completed')" :class="currentTab === 'completed' ? 'bg-green-600 text-white' : 'bg-gray-200'" class="px-4 py-2 rounded font-semibold">Selesai / Tolak</button>
+        <div class="flex flex-wrap gap-2 md:gap-4 mb-6">
+            <button @click="setTab('pending')" :class="currentTab === 'pending' ? 'bg-amber-500 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'" class="px-5 py-2.5 rounded-lg font-bold transition text-sm">Menunggu (Pending)</button>
+            <button @click="setTab('approved')" :class="currentTab === 'approved' ? 'bg-indigo-500 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'" class="px-5 py-2.5 rounded-lg font-bold transition text-sm">Siap / Proses Ambil</button>
+            <button @click="setTab('completed')" :class="currentTab === 'completed' ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'" class="px-5 py-2.5 rounded-lg font-bold transition text-sm">Riwayat (Selesai/Ditolak)</button>
         </div>
 
         <!-- TABEL REQUEST LIST -->
-        <table class="w-full border-collapse border border-gray-300 text-sm">
-            <thead>
-                <tr class="bg-gray-100">
-                    <th class="border p-2">Tanggal Ambil</th>
-                    <th v-if="myProfile.role === 'admin'" class="border p-2">Pemohon (NIK)</th>
-                    <th class="border p-2">Status</th>
-                    <th class="border p-2">Aksi</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr v-for="req in filteredRequests" :key="req.id" class="hover:bg-gray-50 text-center">
-                    <td class="border p-2 font-mono">{{ formatDate(req.tgl_pengambilan) }}</td>
-                    <td v-if="myProfile.role === 'admin'" class="border p-2">{{ req.nama }} ({{ req.nik }})</td>
-                    <td class="border p-2">
-                        <span :class="{
-                            'bg-yellow-100 text-yellow-800': req.status === 'pending',
-                            'bg-blue-100 text-blue-800': req.status === 'approved',
-                            'bg-green-100 text-green-800': req.status === 'completed',
-                            'bg-red-100 text-red-800': req.status === 'rejected'
-                        }" class="px-2 py-1 rounded text-xs uppercase font-bold">{{ req.status }}</span>
-                    </td>
-                    <td class="border p-2 space-x-2">
-                        <!-- Admin: Approve / Reject (Hanya jika Pending) -->
-                        <template v-if="myProfile.role === 'admin' && req.status === 'pending'">
-                            <button @click="updateStatus(req.id, 'approved')" class="bg-blue-500 text-white px-3 py-1 rounded text-xs font-bold hover:bg-blue-600">Terima</button>
-                            <button @click="updateStatus(req.id, 'rejected')" class="bg-red-500 text-white px-3 py-1 rounded text-xs font-bold hover:bg-red-600">Tolak</button>
-                        </template>
-                        
-                        <!-- Admin & Client: Lihat Detail Item  
-                        <button @click="openDetailModal(req)" class="bg-gray-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-gray-700">Lihat Detail / Scan</button>
-                    </td>
-                </tr>
-                <tr v-if="filteredRequests.length === 0"><td colspan="4" class="text-center py-6 text-gray-500">Tidak ada data di kategori ini.</td></tr>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- ========================================== -->
-    <!-- MODAL DETAIL & SIMULASI SCANNER -->
-    <!-- ========================================== -->
-    <div v-if="showDetailModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white p-6 rounded-lg w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
-            <div class="flex justify-between items-center mb-4 border-b pb-2">
-                <h3 class="font-bold text-lg text-teal-800">Detail Request & Scanning</h3>
-                <button @click="showDetailModal = false" class="text-red-500 font-bold text-xl hover:text-red-700">&times;</button>
-            </div>
-
-            <!-- Area Input Scanner (Muncul KHUSUS ADMIN dan KHUSUS STATUS APPROVED) -->
-            <div v-if="myProfile.role === 'admin' && selectedRequest.status === 'approved'" class="bg-blue-50 p-4 rounded border border-blue-200 mb-6">
-                <h4 class="font-bold text-blue-800 text-sm mb-2">Simulasi Scanner (Input Barcode dari Buku Arsip):</h4>
-                <div class="flex gap-2">
-                    <!-- Gunakan @keyup.enter agar langsung submit saat alat scanner nge-klik 'Enter' otomatis -->
-                    <input v-model="barcodeInput" @keyup.enter="submitScan" type="text" class="border p-2 rounded w-full font-mono text-lg" placeholder="Tembak barcode di sini..." autofocus>
-                    <button @click="submitScan" class="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700">Scan</button>
-                </div>
-                <p class="text-xs text-blue-600 mt-1">*Jika pakai alat scanner fisik, taruh kursor di kotak ini, lalu tembak barcode-nya.</p>
-            </div>
-
-            <!-- Tabel Daftar Barang -->
-            <table class="w-full text-sm mb-6 border">
-                <thead>
-                    <tr class="bg-gray-100 border-b">
-                        <th class="p-2 text-left">Nama Barang</th>
-                        <th class="p-2 text-center">Qty</th>
-                        <th class="p-2 text-center">Status Verifikasi Scan</th>
+        <div class="overflow-x-auto border border-slate-200 rounded-xl">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-slate-50 text-slate-500 uppercase text-[11px] font-extrabold tracking-wider border-b border-slate-200">
+                    <tr>
+                        <th class="p-4">Tanggal Ambil</th>
+                        <th v-if="myProfile.role === 'admin'" class="p-4">Pemohon</th>
+                        <th class="p-4 text-center">Status</th>
+                        <th class="p-4 text-right">Aksi & Detail</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr v-for="item in requestDetails" :key="item.id" class="border-b">
-                        <td class="p-2 font-semibold">
-                            {{ item.nama_barang }}
-                            <div class="text-xs text-gray-500 font-mono">Barcode Target: {{ item.barcode }}</div>
+                <tbody class="divide-y divide-slate-200">
+                    <tr v-for="req in filteredRequests" :key="req.id" class="hover:bg-slate-50 transition" :class="{'bg-indigo-50/50': req.status === 'processing'}">
+                        <td class="p-4 font-mono text-slate-600 font-medium">{{ formatDate(req.tgl_pengambilan) }}</td>
+                        <td v-if="myProfile.role === 'admin'" class="p-4 font-bold text-slate-700">{{ req.nama_karyawan || req.nama }} <br><span class="text-xs text-slate-400 font-normal">NIK: {{ req.nik }}</span></td>
+                        
+                        <td class="p-4 text-center">
+                            <!-- Label Status Kustom -->
+                            <span v-if="req.status === 'processing'" class="bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase animate-pulse inline-block">
+                                Sedang Serah Terima
+                            </span>
+                            <span v-else :class="{
+                                'bg-amber-100 text-amber-700 border border-amber-200': req.status === 'pending',
+                                'bg-blue-100 text-blue-700 border border-blue-200': req.status === 'approved',
+                                'bg-emerald-100 text-emerald-700 border border-emerald-200': req.status === 'completed',
+                                'bg-rose-100 text-rose-700 border border-rose-200': req.status === 'rejected'
+                            }" class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase inline-block">{{ req.status }}</span>
                         </td>
-                        <td class="p-2 text-center text-lg font-bold">{{ item.jumlah }}</td>
-                        <td class="p-2 text-center">
-                            <span v-if="item.is_scanned" class="text-green-600 font-bold bg-green-100 px-2 py-1 rounded">✅ VALID (Terscan)</span>
-                            <span v-else class="text-red-500 font-bold bg-red-100 px-2 py-1 rounded">❌ BELUM</span>
+                        
+                        <td class="p-4 text-right space-x-2">
+                            <!-- TOMBOL KHUSUS ADMIN -->
+                            <template v-if="myProfile.role === 'admin'">
+                                <!-- Saat Pending -->
+                                <template v-if="req.status === 'pending'">
+                                    <button @click="updateStatus(req.id, 'approved')" class="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-600 transition shadow-sm">Terima</button>
+                                    <button @click="updateStatus(req.id, 'rejected')" class="bg-rose-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-600 transition shadow-sm">Tolak</button>
+                                </template>
+                                
+                                <!-- Saat Approved (Buka Gerbang) -->
+                                <button v-if="req.status === 'approved'" @click="mulaiSerahTerima(req.id)" class="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-700 transition shadow-md ring-2 ring-indigo-300 ring-offset-1">
+                                    Mulai Serah Terima
+                                </button>
+
+                                <!-- Saat Processing (Batal Sesi) -->
+                                <button v-if="req.status === 'processing'" @click="updateStatus(req.id, 'pending')" class="bg-amber-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-amber-600 transition shadow-sm">
+                                    Batalkan Sesi
+                                </button>
+                            </template>
+
+                            <!-- TOMBOL GLOBAL (Lihat isi Nota) -->
+                            <button @click="openDetailModal(req)" class="bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-300 transition mt-2 md:mt-0">Lihat Isi Nota</button>
                         </td>
+                    </tr>
+                    <tr v-if="filteredRequests.length === 0">
+                        <td :colspan="myProfile.role === 'admin' ? 4 : 3" class="text-center py-12 text-slate-400 font-medium italic">Tidak ada data di kategori ini.</td>
                     </tr>
                 </tbody>
             </table>
+        </div>
+    </div>
 
-            <!-- Tombol Selesaikan Transaksi (Khusus Admin & Approved) -->
-            <div v-if="myProfile.role === 'admin' && selectedRequest.status === 'approved'" class="text-right border-t pt-4">
-                <p class="text-sm text-gray-600 mb-2">Pastikan semua status menjadi <span class="text-green-600 font-bold">VALID</span> sebelum menyelesaikan serah terima.</p>
-                <button @click="completeHandover" :disabled="!isAllScanned" :class="isAllScanned ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 cursor-not-allowed'" class="text-white px-6 py-3 rounded font-bold text-lg w-full md:w-auto transition">
-                    Selesaikan & Potong Stok
-                </button>
+    <!-- ========================================== -->
+    <!-- MODAL DETAIL NOTA (READ-ONLY / SCANNER) -->
+    <!-- ========================================== -->
+    <div v-if="showDetailModal" class="fixed inset-0 bg-slate-900 bg-opacity-60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+        <div class="bg-white p-6 md:p-8 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                <h3 class="font-extrabold text-xl text-slate-800">Detail Nota Request</h3>
+                <button @click="showDetailModal = false" class="text-slate-400 hover:text-rose-500 transition text-2xl leading-none">&times;</button>
+            </div>
+
+            <!-- Instruksi -->
+            <div v-if="selectedRequest.status === 'approved'" class="bg-blue-50 text-blue-700 p-4 rounded-lg text-sm font-bold mb-6 border border-blue-100 flex items-start gap-3">
+                <span class="text-xl">ℹ️</span>
+                <p>Status: <span class="uppercase">Siap Diambil</span>. Karyawan harap menuju meja Admin. Admin akan menekan tombol "Mulai Serah Terima" sebelum fisik barang di-scan.</p>
+            </div>
+
+            <!-- AREA INPUT SCANNER MANUAL (Hanya muncul untuk Admin saat status Processing) -->
+            <div v-if="myProfile.role === 'admin' && selectedRequest.status === 'processing'" class="bg-indigo-50 p-5 rounded-xl border border-indigo-200 mb-6 shadow-inner">
+                <div class="flex items-center gap-3 mb-3">
+                    <span class="text-2xl animate-pulse">📡</span>
+                    <h4 class="font-extrabold text-indigo-800 text-sm">Simulasi Scanner Hardware (Gatekeeper Aktif):</h4>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <input v-model="barcodeInput" @keyup.enter="submitScan" type="text" class="border-2 border-indigo-200 p-3 rounded-lg w-full font-mono text-lg focus:border-indigo-500 outline-none" placeholder="Masukkan Barcode Barang..." autofocus>
+                    <button @click="submitScan" class="bg-indigo-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-indigo-700 shadow-md transition">Tembak!</button>
+                </div>
+                <p class="text-[11px] text-indigo-600 mt-2 font-medium">*Fitur ini digunakan sementara sebelum alat ESP32 dipasang. Jika barang di-scan, status di bawah akan berubah otomatis jadi VALID.</p>
+            </div>
+
+            <!-- Tabel Daftar Barang di dalam Nota -->
+            <div class="border border-slate-200 rounded-xl overflow-hidden mb-6">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th class="p-3 text-left font-bold text-slate-600">Barang & Alasan</th>
+                            <th class="p-3 text-center font-bold text-slate-600">Qty</th>
+                            <th class="p-3 text-center font-bold text-slate-600">Foto Bukti</th>
+                            <th class="p-3 text-center font-bold text-slate-600">Scan Hardware</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        <tr v-for="item in requestDetails" :key="item.id" class="hover:bg-slate-50">
+                            <td class="p-3">
+                                <p class="font-bold text-slate-800">{{ item.nama_barang }}</p>
+                                <p class="text-[11px] text-slate-500 font-mono mt-0.5">Kode: {{ item.barcode }}</p>
+                                <p class="text-xs text-slate-500 italic mt-1">"{{ item.alasan || '-' }}"</p>
+                            </td>
+                            <td class="p-3 text-center font-extrabold text-indigo-600 text-lg">{{ item.jumlah }}</td>
+                            <td class="p-3 text-center">
+                                <img v-if="item.foto_bukti" :src="item.foto_bukti" @click="window.open(item.foto_bukti)" class="w-12 h-12 object-cover rounded-md mx-auto border shadow-sm cursor-pointer hover:scale-110 transition">
+                                <span v-else class="text-slate-300 text-xs">-</span>
+                            </td>
+                            <td class="p-3 text-center">
+                                <span v-if="item.is_scanned" class="text-emerald-600 font-extrabold text-xs bg-emerald-50 px-2 py-1 rounded border border-emerald-200">✅ VALID</span>
+                                <span v-else class="text-slate-400 font-bold text-xs bg-slate-100 px-2 py-1 rounded">BELUM</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
             
-            <div v-if="myProfile.role === 'karyawan' && selectedRequest.status === 'approved'" class="bg-blue-50 text-blue-800 p-3 rounded text-center font-bold text-sm">
-                Barang Anda siap diambil! Silakan datang ke Gudang Logistik.
+            <!-- FOOTER MODAL & TOMBOL SELESAIKAN -->
+            <div v-if="myProfile.role === 'admin' && selectedRequest.status === 'processing'" class="border-t border-slate-100 pt-4 flex flex-col items-end">
+                <p v-if="!isAllScanned" class="text-[11px] text-rose-500 mb-3 font-bold bg-rose-50 px-3 py-1.5 rounded-md border border-rose-100">
+                    *Tembak semua barcode hingga status menjadi VALID untuk memunculkan tombol Selesai.
+                </p>
+                <div class="flex flex-col sm:flex-row gap-3 w-full justify-end">
+                    <button @click="showDetailModal = false" class="bg-slate-200 text-slate-700 px-6 py-3 rounded-lg font-bold hover:bg-slate-300 transition text-sm">Tutup / Minimize</button>
+                    <!-- Tombol ini cuma bisa diklik kalau isAllScanned = TRUE -->
+                    <button @click="completeHandover" :disabled="!isAllScanned" :class="isAllScanned ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg' : 'bg-slate-300 text-slate-500 cursor-not-allowed'" class="px-6 py-3 rounded-lg font-bold transition text-sm">
+                        Selesaikan & Potong Stok Gudang
+                    </button>
+                </div>
+            </div>
+            
+            <div v-else class="text-right border-t border-slate-100 pt-4">
+                <button @click="showDetailModal = false" class="bg-slate-800 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-slate-900 transition w-full md:w-auto">Tutup Detail</button>
             </div>
 
         </div>
@@ -156,35 +202,34 @@ createApp({
             requests: [], currentTab: 'pending',
             
             showDetailModal: false, selectedRequest: null, requestDetails: [],
-            barcodeInput: ''
+            barcodeInput: '' // Menyimpan teks barcode dari input simulator
         }
     },
-    // Tambahkan hook 'mounted' untuk mengecek localStorage saat halaman dimuat
     mounted() {
         this.checkLoginSession();
     },
     computed: {
         filteredRequests() {
             if (this.currentTab === 'pending') return this.requests.filter(r => r.status === 'pending');
-            if (this.currentTab === 'approved') return this.requests.filter(r => r.status === 'approved');
+            if (this.currentTab === 'approved') return this.requests.filter(r => r.status === 'approved' || r.status === 'processing');
             return this.requests.filter(r => r.status === 'completed' || r.status === 'rejected');
         },
+        // Logika untuk mendeteksi apakah SEMUA item di nota sudah tervalidasi oleh scanner
         isAllScanned() {
-            if(this.requestDetails.length === 0) return false;
+            if (!this.requestDetails || this.requestDetails.length === 0) return false;
+            // Akan me-return true HANYA JIKA semua item memiliki is_scanned === true
             return this.requestDetails.every(item => item.is_scanned === true);
         }
     },
     methods: {
         setAuthHeader() { return { headers: { 'Authorization': `Bearer ${this.token}` } }; },
         clearMsg() { this.globalError = ''; this.globalSuccess = ''; },
-        formatDate(isoString) { return new Date(isoString).toLocaleDateString('id-ID'); },
+        formatDate(isoString) { return new Date(isoString).toLocaleDateString('id-ID', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }); },
         setTab(tab) { this.currentTab = tab; this.clearMsg(); },
 
-        // Method baru untuk mengecek sesi di localStorage
         checkLoginSession() {
             const savedToken = localStorage.getItem('wms_token');
             const savedProfile = localStorage.getItem('wms_profile');
-            
             if (savedToken && savedProfile) {
                 this.token = savedToken;
                 this.myProfile = JSON.parse(savedProfile);
@@ -202,16 +247,14 @@ createApp({
                 this.myProfile = profileRes.data;
                 this.isLoggedIn = true;
                 
-                // Simpan token dan profile ke localStorage
                 localStorage.setItem('wms_token', this.token);
                 localStorage.setItem('wms_profile', JSON.stringify(this.myProfile));
 
                 this.fetchRequests();
-            } catch (err) { this.globalError = err.response?.data?.message || 'Login gagal'; }
+            } catch (err) { this.globalError = err.response?.data?.message || 'Login gagal. Periksa NIK & PIN.'; }
         },
         
         doLogout() { 
-            // Hapus data dari localStorage saat logout
             localStorage.removeItem('wms_token');
             localStorage.removeItem('wms_profile');
             location.reload(); 
@@ -223,62 +266,81 @@ createApp({
                 const res = await axios.get(url, this.setAuthHeader());
                 this.requests = res.data;
             } catch (err) { 
-                this.globalError = 'Gagal memuat request. Sesi mungkin telah habis.'; 
-                // Opsional: otomatis logout jika token expired/invalid
-                if(err.response && err.response.status === 401) {
-                    this.doLogout();
-                }
+                if(err.response?.status === 401) this.doLogout();
+                else this.globalError = 'Gagal memuat data request.'; 
             }
         },
 
         async updateStatus(id, status) {
-            if(!confirm(`Yakin mengubah status menjadi ${status.toUpperCase()}?`)) return;
+            let msg = status === 'pending' ? 'Membatalkan sesi dan mengembalikan status ke PENDING?' : `Yakin mengubah status menjadi ${status.toUpperCase()}?`;
+            if(!confirm(msg)) return;
+            
             this.clearMsg();
             try {
                 await axios.put(`${API_URL}/requests/${id}/status`, { status }, this.setAuthHeader());
-                this.globalSuccess = `Berhasil update status jadi ${status}`;
+                this.globalSuccess = status === 'pending' ? 'Sesi dibatalkan. Status kembali ke Pending.' : `Berhasil update status menjadi ${status}`;
                 this.fetchRequests();
-            } catch (err) { this.globalError = 'Gagal update status.'; }
+            } catch (err) { this.globalError = err.response?.data?.message || 'Gagal update status.'; }
+        },
+
+        async mulaiSerahTerima(id) {
+            if(!confirm("Buka gerbang Scanner ESP32 khusus untuk nota ini? (Pastikan Karyawan sudah berada di depan meja).")) return;
+            this.clearMsg();
+            try {
+                await axios.put(`${API_URL}/requests/${id}/start-process`, {}, this.setAuthHeader());
+                this.globalSuccess = 'Gerbang ESP32 terbuka! Minta karyawan scan barang sekarang.';
+                this.fetchRequests();
+            } catch (e) { 
+                this.globalError = e.response?.data?.message || "Gagal memulai sesi serah terima."; 
+            }
         },
 
         async openDetailModal(req) {
             this.selectedRequest = req;
-            this.barcodeInput = '';
+            this.barcodeInput = ''; // Reset input setiap kali modal dibuka
             this.clearMsg();
             try {
                 const res = await axios.get(`${API_URL}/requests/${req.id}/details`, this.setAuthHeader());
                 this.requestDetails = res.data;
                 this.showDetailModal = true;
-            } catch (err) { alert('Gagal memuat detail barang.'); }
+            } catch (err) { alert('Gagal memuat rincian barang.'); }
         },
 
+        // --- SIMULATOR SCANNER ---
         async submitScan() {
             if(!this.barcodeInput) return;
             try {
                 const res = await axios.put(`${API_URL}/requests/scan-verify`, {
-                    request_id: this.selectedRequest.id,
                     barcode: this.barcodeInput
                 }, this.setAuthHeader());
                 
+                // Menampilkan alert hijau sukses jika barcode valid
                 alert(res.data.message);
                 
+                // Mengambil ulang data tabel agar status otomatis berubah menjadi ✅ VALID
                 const detailRes = await axios.get(`${API_URL}/requests/${this.selectedRequest.id}/details`, this.setAuthHeader());
                 this.requestDetails = detailRes.data;
-                this.barcodeInput = ''; 
+                
+                this.barcodeInput = ''; // Kosongkan input setelah berhasil scan
             } catch (err) {
+                // Alert merah jika salah scan (barcode salah / tidak ada di nota)
                 alert(err.response?.data?.message || 'Error saat scan barcode!');
-                this.barcodeInput = '';
+                this.barcodeInput = ''; // Tetap kosongkan agar cepat ngetik ulang
             }
         },
 
+        // --- FINALISASI NOTA ---
         async completeHandover() {
-            if(!confirm('Selesaikan serah terima? Stok akan langsung terpotong di database.')) return;
+            if(!confirm('Selesaikan sesi ini? Stok di database akan terpotong secara permanen.')) return;
             try {
                 const res = await axios.post(`${API_URL}/requests/${this.selectedRequest.id}/complete`, {}, this.setAuthHeader());
+                
                 alert(res.data.message);
-                this.showDetailModal = false;
-                this.fetchRequests();
-                this.currentTab = 'completed';
+                this.showDetailModal = false; // Tutup modal otomatis
+                
+                // Pindah ke tab history otomatis
+                this.currentTab = 'completed'; 
+                this.fetchRequests(); // Refresh data utama
             } catch (err) {
                 alert(err.response?.data?.message || 'Gagal menyelesaikan serah terima.');
             }
