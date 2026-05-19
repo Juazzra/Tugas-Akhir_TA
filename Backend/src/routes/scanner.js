@@ -5,17 +5,20 @@ const pool = require('../config/db');
 // Rute POST untuk scanner ESP32
 router.post('/', async (req, res) => {
     // ==========================================
-    // SECURITY PATCH: GATEKEEPER API KEY
+    // SECURITY PATCH: GATEKEEPER API KEY VIA .ENV
     // ==========================================
-    // Menangkap header bernama 'x-api-key' yang dikirim ESP32
     const apiKey = req.headers['x-api-key'];
-    
-    // Ganti 'RAHASIA_ESP32_WMS_2024' dengan password buatanmu sendiri
-    // Lebih bagus lagi kalau password ini kamu simpan di file .env
-    const validApiKey = process.env.ESP32_API_KEY || 'RAHASIA_ESP32_WMS_2024';
+    const validApiKey = process.env.ESP32_API_KEY; // Menarik kunci langsung dari file .env
 
+    // Keamanan tambahan: Kalau kamu lupa pasang variabel di .env, API otomatis nolak
+    if (!validApiKey) {
+        console.error('CRITICAL ERROR: ESP32_API_KEY belum di-set di file .env!');
+        return res.status(500).json({ status: 'error', lcd_line_1: 'SYSTEM ERROR', lcd_line_2: 'NO API KEY' });
+    }
+
+    // Jika kunci dari ESP32 tidak cocok dengan yang ada di .env
     if (apiKey !== validApiKey) {
-        console.warn('⚠️ PERINGATAN: Ada percobaan akses API Scanner tanpa kunci yang valid!');
+        console.warn('⚠️ PERINGATAN: Akses ditolak! Key tidak cocok.');
         return res.status(401).json({ 
             status: 'error', 
             lcd_line_1: 'AKSES DITOLAK!', 
@@ -37,13 +40,12 @@ router.post('/', async (req, res) => {
         }
 
         // ==========================================
-        // 1. MODE OUT (SERAH TERIMA BARANG KARYAWAN) -> TERINTEGRASI GATEKEEPER
+        // 1. MODE OUT (SERAH TERIMA BARANG KARYAWAN)
         // ==========================================
         if (mode === 'OUT') {
             // A. Cek Gerbang: Apakah Admin sedang membuka sesi 'processing'?
             const activeReq = await pool.query("SELECT id FROM request_header WHERE status = 'processing'");
             if (activeReq.rows.length === 0) {
-                // Bunyikan buzzer error di ESP32, tampilkan di LCD
                 return res.json({ 
                     status: 'error', 
                     lcd_line_1: 'Akses Ditolak!', 
@@ -52,8 +54,12 @@ router.post('/', async (req, res) => {
             }
             const activeRequestId = activeReq.rows[0].id;
 
-            // B. Cari Data Barang di Master
-            const itemResult = await pool.query('SELECT id, nama_barang FROM items WHERE barcode = $1 AND is_active = TRUE', [code]);
+            // B. Cari Data Barang di Master (Hanya gunakan kolom barcode)
+            const itemResult = await pool.query(
+                'SELECT id, nama_barang FROM items WHERE barcode = $1 AND is_active = TRUE', 
+                [code]
+            );
+            
             if (itemResult.rows.length === 0) {
                 return res.json({ 
                     status: 'error', 
@@ -63,7 +69,7 @@ router.post('/', async (req, res) => {
             }
             
             const item = itemResult.rows[0];
-            const namaLcd = item.nama_barang.substring(0, 16); // Potong maksimal 16 huruf buat LCD
+            const namaLcd = item.nama_barang.substring(0, 16); 
 
             // C. Gatekeeper Validasi: Cocokkan barang dengan nota yang lagi aktif
             const detailResult = await pool.query(
@@ -73,7 +79,6 @@ router.post('/', async (req, res) => {
             );
 
             if (detailResult.rows.length === 0) {
-                // Barang tidak ada di nota, atau karyawan dobel nge-scan
                 return res.json({ 
                     status: 'error', 
                     lcd_line_1: 'Salah Barang!', 
@@ -82,6 +87,12 @@ router.post('/', async (req, res) => {
             }
 
             // D. Sukses! Barang sesuai nota.
+            // Tinggalkan jejak scan (History) di tabel scanner_queue
+            await pool.query(
+                'INSERT INTO scanner_queue (barcode, mode, status) VALUES ($1, $2, $3)',
+                [code, 'OUT', 'SUCCESS']
+            );
+
             return res.json({ 
                 status: 'success', 
                 lcd_line_1: 'Scan Berhasil!', 
@@ -93,8 +104,25 @@ router.post('/', async (req, res) => {
         // 2. MODE IN (RESTOCK GUDANG / BARANG MASUK)
         // ==========================================
         if (mode === 'IN') {
-            // Cek master barang
-            const itemResult = await pool.query('SELECT nama_barang FROM items WHERE barcode = $1', [code]);
+            // ANTI-SPAM: Cek apakah kode ini sudah ada di antrean PENDING
+            const queueCheck = await pool.query(
+                "SELECT id FROM scanner_queue WHERE barcode = $1 AND status = 'PENDING'", 
+                [code]
+            );
+            
+            if (queueCheck.rows.length > 0) {
+                return res.json({
+                    status: 'success',
+                    lcd_line_1: 'Sudah Masuk!',
+                    lcd_line_2: 'Tunggu Konfirmasi'
+                });
+            }
+
+            // Cek master barang untuk menentukan pesan LCD (Hanya gunakan kolom barcode)
+            const itemResult = await pool.query(
+                'SELECT nama_barang FROM items WHERE barcode = $1', 
+                [code]
+            );
             
             if (itemResult.rows.length === 0) {
                 // Barang baru yang belum pernah ada
@@ -110,7 +138,8 @@ router.post('/', async (req, res) => {
             }
 
             const namaLcd = itemResult.rows[0].nama_barang.substring(0, 16);
-            // Masukkan ke antrean restock untuk diproses admin nanti
+            
+            // Masukkan ke antrean restock barang lama
             await pool.query(
                 'INSERT INTO scanner_queue (barcode, mode, status) VALUES ($1, $2, $3)',
                 [code, 'IN', 'PENDING']
