@@ -4,6 +4,25 @@ const pool = require('../config/db');
 
 // Rute POST untuk scanner ESP32
 router.post('/', async (req, res) => {
+    // ==========================================
+    // SECURITY PATCH: GATEKEEPER API KEY
+    // ==========================================
+    // Menangkap header bernama 'x-api-key' yang dikirim ESP32
+    const apiKey = req.headers['x-api-key'];
+    
+    // Ganti 'RAHASIA_ESP32_WMS_2024' dengan password buatanmu sendiri
+    // Lebih bagus lagi kalau password ini kamu simpan di file .env
+    const validApiKey = process.env.ESP32_API_KEY || 'RAHASIA_ESP32_WMS_2024';
+
+    if (apiKey !== validApiKey) {
+        console.warn('⚠️ PERINGATAN: Ada percobaan akses API Scanner tanpa kunci yang valid!');
+        return res.status(401).json({ 
+            status: 'error', 
+            lcd_line_1: 'AKSES DITOLAK!', 
+            lcd_line_2: 'UNAUTHORIZED' 
+        });
+    }
+    // ==========================================
     try {
         // --- SANITASI DATA ---
         const code = req.body.code ? String(req.body.code).trim() : null;
