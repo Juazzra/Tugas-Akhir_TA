@@ -237,6 +237,10 @@ exports.approveRestock = async (req, res) => {
         const processedBarcodes = []; // Array untuk menampung barcode yang sukses diproses
 
         for (let item of items_to_approve) {
+            if (!item.qty || item.qty <= 0) {
+                throw new Error(`Jumlah QTY untuk barcode ${item.barcode} tidak valid (tidak boleh 0 atau minus)!`);
+            }
+            
             const updateRes = await client.query(
                 'UPDATE items SET stok_aktual = stok_aktual + $1 WHERE barcode = $2 RETURNING id',
                 [item.qty, item.barcode]

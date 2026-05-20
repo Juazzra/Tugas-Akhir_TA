@@ -10,7 +10,16 @@ exports.createRequest = async (req, res) => {
     try {
         const { tgl_pengambilan, keranjang } = req.body;
         const user_id = req.user.id;
-
+        // [+] TAMBAHKAN VALIDASI INI SEBELUM 'BEGIN'
+        if (!keranjang || !Array.isArray(keranjang) || keranjang.length === 0) {
+            return res.status(400).json({ message: 'Keranjang belanja tidak boleh kosong!' });
+        }
+        for (let item of keranjang) {
+            if (!item.jumlah || item.jumlah <= 0) {
+                return res.status(400).json({ message: 'Kuantitas barang harus lebih besar dari 0!' });
+            }
+        }
+        // ==========================================
         await client.query('BEGIN'); // Kunci transaksi
 
         const headerResult = await client.query(
@@ -85,29 +94,36 @@ exports.getAllRequests = async (req, res) => {
 };
 
 // ==========================================
-// ADMIN: MULAI SERAH TERIMA (KUNCI GATEKEEPER)
+// ADMIN: MULAI SERAH TERIMA (KUNCI GATEKEEPER - FIX RACE CONDITION)
 // ==========================================
 exports.startProcessing = async (req, res) => {
+    const client = await pool.connect();
     try {
         const { id } = req.params;
 
+        await client.query('BEGIN'); // Kunci transaksi dimulai
+
         // Cek apakah ada nota lain yang sedang jalan
-        const checkActive = await pool.query("SELECT id FROM request_header WHERE status = 'processing'");
+        const checkActive = await client.query("SELECT id FROM request_header WHERE status = 'processing' FOR UPDATE");
         if (checkActive.rows.length > 0 && checkActive.rows[0].id !== id) {
-            return res.status(400).json({ message: `Selesaikan atau batalkan nota ID: ${checkActive.rows[0].id} terlebih dahulu!` });
+            throw new Error(`Selesaikan atau batalkan nota ID: ${checkActive.rows[0].id} terlebih dahulu!`);
         }
 
-        const result = await pool.query(
+        const result = await client.query(
             "UPDATE request_header SET status = 'processing', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status = 'approved' RETURNING *", [id]
         );
 
-        if (result.rows.length === 0) return res.status(404).json({ message: 'Request tidak valid/belum di-approve.' });
+        if (result.rows.length === 0) throw new Error('Request tidak valid/belum di-approve.');
+        
+        await client.query('COMMIT');
         res.json({ message: 'Sesi dimulai. Gerbang Scanner Terbuka.', data: result.rows[0] });
         
     } catch (err) {
-        // PERBAIKAN: Munculkan pesan error asli dari PostgreSQL ke terminal!
+        await client.query('ROLLBACK');
         console.error("ERROR DI START PROCESSING:", err.message); 
-        res.status(500).json({ message: 'Server error: ' + err.message });
+        res.status(400).json({ message: err.message });
+    } finally {
+        client.release();
     }
 };
 
@@ -119,7 +135,10 @@ exports.updateRequestStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const { status } = req.body;
-
+        const allowedStatuses = ['pending', 'approved', 'rejected', 'processing', 'completed'];
+        if (!allowedStatuses.includes(status)) {
+            return res.status(400).json({ message: 'Status yang dikirim tidak valid!' });
+        }
         await client.query('BEGIN');
 
         // Jika membatalkan sesi processing
@@ -159,7 +178,7 @@ exports.verifyScanItem = async (req, res) => {
         const activeRequestId = activeReq.rows[0].id;
 
         // 2. Cari ID Master Barang
-        const itemQ = await pool.query('SELECT id, nama_barang FROM items WHERE barcode = $1', [barcode]);
+        const itemQ = await client.query('SELECT id, nama_barang FROM items WHERE barcode = $1', [barcode]);
         if (itemQ.rows.length === 0) throw new Error('DENIED: Barcode tidak terdaftar di sistem!');
         const item = itemQ.rows[0];
 
@@ -203,7 +222,16 @@ exports.completeHandover = async (req, res) => {
         const details = await client.query('SELECT item_id, jumlah FROM request_detail WHERE request_id = $1', [id]);
 
         for (let row of details.rows) {
+            // [+] TAMBAHAN: Cek stok aktual di detik-detik terakhir sebelum potong!
+            const cekStok = await client.query('SELECT stok_aktual, nama_barang FROM items WHERE id = $1', [row.item_id]);
+            if (cekStok.rows[0].stok_aktual < row.jumlah) {
+                throw new Error(`GAGAL! Stok "${cekStok.rows[0].nama_barang}" saat ini sisa ${cekStok.rows[0].stok_aktual}, tidak cukup untuk dipotong!`);
+            }
+
+            // Lanjut potong stok
             await client.query('UPDATE items SET stok_aktual = stok_aktual - $1 WHERE id = $2', [row.jumlah, row.item_id]);
+            
+            // Catat log
             await client.query(
                 `INSERT INTO inventory_logs (item_id, user_id, tipe_transaksi, qty, referensi_id) VALUES ($1, $2, 'OUT', $3, $4)`,
                 [row.item_id, admin_id, row.jumlah, id]
@@ -235,10 +263,24 @@ exports.getMyRequests = async (req, res) => {
 };
 
 // ==========================================
-// GLOBAL: LIHAT DETAIL BARANG DALAM NOTA (TERMASUK FOTO)
+// GLOBAL: LIHAT DETAIL BARANG DALAM NOTA (FIX PRIVACY)
 // ==========================================
 exports.getRequestDetails = async (req, res) => {
     try {
+        const requestId = req.params.id;
+        const userId = req.user.id;
+        const userRole = req.user.role;
+
+        // Validasi Kepemilikan: Karyawan dilarang intip nota orang lain
+        const authCheck = await pool.query(
+            `SELECT id FROM request_header WHERE id = $1 AND (user_id = $2 OR $3 = 'admin')`,
+            [requestId, userId, userRole]
+        );
+
+        if (authCheck.rows.length === 0) {
+            return res.status(403).json({ message: 'Akses Ditolak! Anda bukan pemilik nota ini.' });
+        }
+
         const result = await pool.query(
             `SELECT 
                 rd.id, rd.item_id, i.nama_barang, i.barcode, 
@@ -246,7 +288,7 @@ exports.getRequestDetails = async (req, res) => {
             FROM request_detail rd 
             JOIN items i ON rd.item_id = i.id 
             WHERE rd.request_id = $1`, 
-            [req.params.id]
+            [requestId]
         );
         res.json(result.rows);
     } catch (err) {

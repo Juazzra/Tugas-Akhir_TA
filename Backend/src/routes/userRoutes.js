@@ -22,7 +22,6 @@ router.get('/', verifyToken, isAdmin, userController.getAllUsers);
 router.put('/:id', verifyToken, isAdmin, userController.updateUserByAdmin);
 router.put('/:id/reset-pin', verifyToken, isAdmin, userController.resetPinByAdmin);
 router.put('/:id', verifyToken, isAdmin, userController.updateUserByAdmin);
-router.put('/:id/reset-pin', verifyToken, isAdmin, userController.resetPinByAdmin);
 
 // Endpoint Delete (Bisa query ?type=hard atau ?type=soft)
 router.delete('/:id', verifyToken, isAdmin, userController.deleteUser);

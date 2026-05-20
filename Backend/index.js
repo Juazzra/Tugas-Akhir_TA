@@ -6,7 +6,11 @@ const path = require('path');
 const app = express();
 
 // Middleware Utama
-app.use(cors());
+const corsOptions = {
+    origin: ['http://127.0.0.1:5500', 'http://localhost:5500', 'http://localhost:3000'],
+    optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '2mb' })); 
 app.use(express.urlencoded({ limit: '1mb', extended: true }));
 
