@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 
@@ -16,7 +16,7 @@ router.post('/', async (req, res) => {
     }
 
     if (apiKey !== validApiKey) {
-        console.warn('⚠️ PERINGATAN: Akses ditolak! Key tidak cocok.');
+        console.warn('âš ï¸ PERINGATAN: Akses ditolak! Key tidak cocok.');
         return res.status(401).json({ status: 'error', lcd_line_1: 'AKSES DITOLAK!', lcd_line_2: 'UNAUTHORIZED' });
     }
     // ==========================================
@@ -81,7 +81,7 @@ router.post('/', async (req, res) => {
         // 2. MODE IN (RESTOCK GUDANG / BARANG MASUK)
         // ==========================================
         if (mode === 'IN') {
-            const queueCheck = await pool.query("SELECT id FROM scanner_queue WHERE barcode = $1 AND status = 'PENDING'", [code]);
+            const queueCheck = await pool.query("SELECT id FROM scanner_queue WHERE barcode = $1 AND status = 'PENDING' AND mode = 'IN'", [code]);
             if (queueCheck.rows.length > 0) return res.json({ status: 'success', lcd_line_1: 'Sudah Masuk!', lcd_line_2: 'Tunggu Konfirmasi' });
 
             const itemResult = await pool.query('SELECT nama_barang FROM items WHERE barcode = $1', [code]);
@@ -105,3 +105,4 @@ router.post('/', async (req, res) => {
 });
 
 module.exports = router;
+

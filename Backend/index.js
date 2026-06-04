@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 const path = require('path');
@@ -7,7 +7,7 @@ const app = express();
 
 // Middleware Utama
 const corsOptions = {
-    origin: ['http://127.0.0.1:5500', 'http://localhost:5500', 'http://localhost:3000'],
+    origin: ['http://127.0.0.1:5500', 'http://localhost:5500', 'http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:5173'],
     optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
