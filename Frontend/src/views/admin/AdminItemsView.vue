@@ -1,5 +1,6 @@
-﻿<script setup>
-import { computed, onMounted, ref } from 'vue'
+<script setup>
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   Boxes,
   Edit3,
@@ -15,6 +16,7 @@ import {
 import { createItem, deleteItem, getItems, updateItem } from '../../api/itemApi'
 import { exportToCsv } from '../../utils/exportCsv'
 
+const route = useRoute()
 const items = ref([])
 const loading = ref(false)
 const saving = ref(false)
@@ -201,7 +203,23 @@ const goToPage = (targetPage) => {
   fetchItems()
 }
 
-onMounted(fetchItems)
+onMounted(() => {
+  fetchItems()
+  if (route.query.addBarcode) {
+    openCreateModal()
+    form.value.barcode = route.query.addBarcode
+  }
+})
+
+watch(
+  () => route.query.addBarcode,
+  (newBarcode) => {
+    if (newBarcode) {
+      openCreateModal()
+      form.value.barcode = newBarcode
+    }
+  }
+)
 </script>
 
 <template>

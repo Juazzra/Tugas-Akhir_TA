@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import JsBarcode from 'jsbarcode'
 import {

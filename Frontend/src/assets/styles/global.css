@@ -1,4 +1,4 @@
-﻿* {
+* {
   box-sizing: border-box;
 }
 
@@ -46,4 +46,42 @@ a {
   margin: 0;
   color: #6b7280;
 }
+
+/* Global premium styles for primary-button */
+.primary-button {
+  color: #ffffff !important;
+  cursor: pointer;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  vertical-align: middle !important;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease !important;
+}
+
+.primary-button span {
+  color: #ffffff !important;
+  line-height: 1 !important;
+}
+
+.primary-button:hover {
+  color: #ffffff !important;
+  background-color: #1d4ed8 !important; /* darker rich blue */
+  box-shadow: 0 8px 16px rgba(29, 78, 216, 0.3) !important;
+}
+
+.primary-button:active {
+  color: #ffffff !important;
+  transform: scale(0.98) !important;
+}
+
+.primary-button:disabled {
+  color: #ffffff !important;
+  background-color: #9ca3af !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  opacity: 0.7;
+}
+
 

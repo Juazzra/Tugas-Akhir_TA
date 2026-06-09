@@ -1,4 +1,5 @@
-﻿<script setup>
+<script setup>
+import { ref } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import {
   Barcode,
@@ -12,6 +13,8 @@ import {
   ScanBarcode,
   UserRound,
   UsersRound,
+  Menu,
+  X,
 } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/authStore'
 
@@ -69,7 +72,27 @@ const handleLogout = () => {
 
 <template>
   <main class="admin-layout">
-    <aside class="sidebar">
+    <!-- Overlay/backdrop for mobile sidebar drawer -->
+    <div v-if="isSidebarOpen" class="sidebar-backdrop no-print" @click="closeSidebar"></div>
+
+    <!-- Mobile Header (Visible only on mobile/tablet) -->
+    <header class="mobile-header no-print">
+      <button class="menu-toggle" type="button" @click="toggleSidebar" aria-label="Toggle Menu">
+        <Menu v-if="!isSidebarOpen" :size="24" />
+        <X v-else :size="24" />
+      </button>
+
+      <div class="mobile-brand">
+        <PackageCheck :size="20" class="brand-blue" />
+        <strong>WMS Admin</strong>
+      </div>
+
+      <div class="mobile-user-avatar">
+        {{ authStore.user?.nama?.charAt(0) || authStore.user?.name?.charAt(0) || 'A' }}
+      </div>
+    </header>
+
+    <aside class="sidebar" :class="{ 'is-open': isSidebarOpen }">
       <div class="brand">
         <div class="brand-icon">
           <PackageCheck :size="26" />
@@ -79,6 +102,10 @@ const handleLogout = () => {
           <h1>WMS</h1>
           <p>Admin Panel</p>
         </div>
+
+        <button class="sidebar-close-btn no-print" type="button" @click="closeSidebar">
+          <X :size="20" />
+        </button>
       </div>
 
       <nav class="nav-menu">
@@ -87,6 +114,7 @@ const handleLogout = () => {
           :key="menu.path"
           :to="menu.path"
           class="nav-link"
+          @click="closeSidebar"
         >
           <component :is="menu.icon" :size="20" />
           <span>{{ menu.label }}</span>
@@ -103,14 +131,14 @@ const handleLogout = () => {
         </div>
       </div>
 
-      <button class="logout-button" type="button" @click="handleLogout">
+      <button class="logout-button" type="button" @click="handleLogout(); closeSidebar()">
         <LogOut :size="19" />
         <span>Logout</span>
       </button>
     </aside>
 
     <section class="main-area">
-      <header class="topbar">
+      <header class="topbar no-print">
         <div>
           <p class="topbar-label">Frontend Warehouse</p>
           <h2>Sistem Pengelolaan Stok Barang</h2>
@@ -336,26 +364,124 @@ const handleLogout = () => {
   padding: 28px 30px;
 }
 
+/* Sidebar close button hidden on desktop */
+.sidebar-close-btn {
+  display: none;
+}
+
+/* Mobile header hidden on desktop */
+.mobile-header {
+  display: none;
+}
+
 @media (max-width: 920px) {
   .admin-layout {
     grid-template-columns: 1fr;
   }
 
+  .mobile-header {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: #0f172a;
+    color: #ffffff;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    z-index: 80;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+  }
+
+  .menu-toggle {
+    background: transparent;
+    border: 0;
+    color: #cbd5e1;
+    display: grid;
+    place-items: center;
+    padding: 8px;
+    border-radius: 8px;
+  }
+
+  .menu-toggle:active {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .mobile-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+  }
+
+  .brand-blue {
+    color: #2563eb;
+  }
+
+  .mobile-user-avatar {
+    width: 34px;
+    height: 34px;
+    background: #2563eb;
+    color: #ffffff;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(3px);
+    z-index: 90;
+  }
+
   .sidebar {
-    position: static;
-    height: auto;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    height: 100vh;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-close-btn {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #cbd5e1;
+    margin-left: auto;
+  }
+
+  .sidebar-close-btn:active {
+    background: rgba(255, 255, 255, 0.15);
   }
 
   .topbar {
-    height: auto;
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 16px;
-    padding: 22px;
+    display: none; /* Hide the big desktop header on mobile */
+  }
+
+  .main-area {
+    padding-top: 60px; /* Offset the mobile header height */
   }
 
   .content {
-    padding: 22px;
+    padding: 16px;
   }
 }
 </style>

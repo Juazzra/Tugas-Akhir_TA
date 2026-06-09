@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed, onMounted, ref } from 'vue'
 import {
   CalendarDays,
@@ -23,6 +23,19 @@ const loading = ref(false)
 const submitting = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
+
+const toastMessage = ref('')
+const showToast = ref(false)
+let toastTimer = null
+
+const triggerToast = (message) => {
+  toastMessage.value = message
+  showToast.value = true
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    showToast.value = false
+  }, 2500)
+}
 
 const search = ref('')
 const page = ref(1)
@@ -79,7 +92,7 @@ const goToPage = (targetPage) => {
 const handleAddToCart = (item) => {
   clearMessage()
   cartStore.addToCart(item)
-  successMessage.value = `${item.nama_barang} masuk ke keranjang.`
+  triggerToast(`${item.nama_barang} berhasil ditambahkan ke keranjang!`)
 }
 
 const handleProofPhoto = (event, itemId) => {
@@ -219,7 +232,6 @@ onMounted(fetchItems)
             <div class="item-body">
               <span class="item-type">{{ item.jenis || 'Tanpa Kategori' }}</span>
               <h2>{{ item.nama_barang }}</h2>
-              <code>{{ item.barcode }}</code>
 
               <div class="stock-row">
                 <span>Stok tersedia</span>
@@ -338,6 +350,11 @@ onMounted(fetchItems)
           {{ submitting ? 'Mengirim...' : 'Kirim Request' }}
         </button>
       </aside>
+    </div>
+
+    <!-- Floating Toast Notification -->
+    <div class="toast-notification" :class="{ 'show': showToast }">
+      <span>{{ toastMessage }}</span>
     </div>
   </section>
 </template>
@@ -812,6 +829,7 @@ code {
 @media (max-width: 1080px) {
   .main-grid {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .cart-panel {
@@ -829,12 +847,67 @@ code {
   }
 
   .items-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .item-photo,
+  .photo-placeholder {
+    height: 115px;
+  }
+
+  .item-body {
+    padding: 10px;
+    gap: 6px;
+  }
+
+  .item-body h2 {
+    font-size: 14px;
+    line-height: 1.2;
+  }
+
+  .item-type {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+
+  .stock-row {
+    font-size: 11px;
   }
 
   .secondary-button,
   .icon-button {
     width: 100%;
   }
+
+  .toast-notification {
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    text-align: center;
+  }
+}
+
+.toast-notification {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  background: #047857; /* nice green */
+  color: #ffffff;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 14px;
+  box-shadow: 0 10px 30px rgba(4, 120, 87, 0.35);
+  transform: translateY(100px);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.toast-notification.show {
+  transform: translateY(0);
+  opacity: 1;
 }
 </style>

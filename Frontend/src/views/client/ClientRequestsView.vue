@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
   CalendarDays,
@@ -80,8 +80,8 @@ const formatDate = (value) => {
   }).format(new Date(value))
 }
 
-const fetchRequests = async () => {
-  loading.value = true
+const fetchRequests = async (isSilent = false) => {
+  if (!isSilent) loading.value = true
   errorMessage.value = ''
 
   try {
@@ -92,7 +92,7 @@ const fetchRequests = async () => {
       selectedRequest.value = updatedSelected || null
 
       if (selectedRequest.value) {
-        await fetchDetails(selectedRequest.value)
+        await fetchDetails(selectedRequest.value, isSilent)
       }
     }
   } catch (error) {
@@ -105,9 +105,9 @@ const fetchRequests = async () => {
   }
 }
 
-const fetchDetails = async (request) => {
+const fetchDetails = async (request, isSilent = false) => {
   selectedRequest.value = request
-  detailLoading.value = true
+  if (!isSilent) detailLoading.value = true
   errorMessage.value = ''
 
   try {
@@ -122,13 +122,33 @@ const fetchDetails = async (request) => {
   }
 }
 
+const countdown = ref(10)
+let countdownTimer = null
+
+const startCountdown = () => {
+  countdown.value = 10
+  if (countdownTimer) clearInterval(countdownTimer)
+  countdownTimer = setInterval(async () => {
+    countdown.value -= 1
+    if (countdown.value <= 0) {
+      countdown.value = 10
+      await fetchRequests(true)
+    }
+  }, 1000)
+}
+
+const handleManualRefresh = async () => {
+  countdown.value = 10
+  await fetchRequests(false)
+}
+
 onMounted(() => {
   fetchRequests()
-  autoRefreshTimer = setInterval(fetchRequests, 10000)
+  startCountdown()
 })
 
 onUnmounted(() => {
-  if (autoRefreshTimer) clearInterval(autoRefreshTimer)
+  if (countdownTimer) clearInterval(countdownTimer)
 })
 </script>
 
@@ -141,10 +161,13 @@ onUnmounted(() => {
         <span>Pantau status pengajuan barang yang sudah kamu kirim.</span>
       </div>
 
-      <button class="primary-button" type="button" @click="fetchRequests">
-        <RefreshCcw :size="18" />
-        <span>Refresh</span>
-      </button>
+      <div class="refresh-container">
+        <span class="countdown-text">Auto refresh: {{ countdown }}s</span>
+        <button class="primary-button" type="button" @click="handleManualRefresh">
+          <RefreshCcw :size="18" />
+          <span>Refresh</span>
+        </button>
+      </div>
     </div>
 
     <div class="summary-grid">
@@ -296,7 +319,6 @@ onUnmounted(() => {
 
                 <div>
                   <strong>{{ detail.nama_barang }}</strong>
-                  <span>Barcode: {{ detail.barcode }}</span>
                   <small>Alasan: {{ detail.alasan || '-' }}</small>
                 </div>
               </div>
@@ -743,6 +765,18 @@ onUnmounted(() => {
   animation: spin 0.9s linear infinite;
 }
 
+.refresh-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.countdown-text {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 700;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -756,6 +790,7 @@ onUnmounted(() => {
 
   .main-grid {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .list-panel {
@@ -770,6 +805,17 @@ onUnmounted(() => {
   .detail-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .refresh-container {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .countdown-text {
+    text-align: center;
   }
 
   .summary-grid,

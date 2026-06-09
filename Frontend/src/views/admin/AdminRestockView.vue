@@ -1,5 +1,6 @@
-﻿<script setup>
+<script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -9,7 +10,9 @@ import {
   RefreshCcw,
   Trash2,
 } from 'lucide-vue-next'
-import { approveRestock, getRestockQueue, rejectRestock } from '../../api/itemApi'
+import { approveRestock, getRestockQueue, rejectRestock, getItems } from '../../api/itemApi'
+
+const router = useRouter()
 
 const queue = ref([])
 const qtyMap = ref({})
@@ -18,6 +21,70 @@ const actionLoading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 let autoRefreshTimer = null
+const countdown = ref(10)
+let countdownTimer = null
+
+const manualBarcode = ref('')
+const manualQty = ref(1)
+const showRegisterPrompt = ref(false)
+const unregisteredBarcode = ref('')
+
+const handleManualRestock = async () => {
+  const barcode = manualBarcode.value.trim()
+  const qty = Number(manualQty.value)
+
+  if (!barcode || qty <= 0) {
+    errorMessage.value = 'Barcode dan Qty tidak valid.'
+    return
+  }
+
+  actionLoading.value = true
+  clearMessage()
+  showRegisterPrompt.value = false
+  unregisteredBarcode.value = ''
+
+  try {
+    // Verify if item exists in master list first
+    const checkResponse = await getItems({ search: barcode, page: 1, limit: 1 })
+    const matchedItem = checkResponse.data?.find((i) => i.barcode === barcode)
+    
+    if (!matchedItem) {
+      errorMessage.value = `Barang dengan barcode "${barcode}" belum terdaftar di Master Barang.`
+      unregisteredBarcode.value = barcode
+      showRegisterPrompt.value = true
+      actionLoading.value = false
+      return
+    }
+
+    const response = await approveRestock([
+      {
+        barcode,
+        qty,
+      },
+    ])
+
+    successMessage.value = response.message || `Restock manual "${matchedItem.nama_barang}" sebanyak ${qty} pcs berhasil diproses.`
+    manualBarcode.value = ''
+    manualQty.value = 1
+    
+    // Refresh the queue
+    await fetchQueue()
+  } catch (error) {
+    errorMessage.value =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      'Gagal memproses restock manual.'
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+const redirectToRegister = (barcode) => {
+  router.push({
+    path: '/admin/items',
+    query: { addBarcode: barcode }
+  })
+}
 
 const knownItems = computed(() => queue.value.filter((item) => item.item_id))
 const unknownItems = computed(() => queue.value.filter((item) => !item.item_id))
@@ -27,8 +94,8 @@ const clearMessage = () => {
   successMessage.value = ''
 }
 
-const fetchQueue = async () => {
-  loading.value = true
+const fetchQueue = async (isSilent = false) => {
+  if (!isSilent) loading.value = true
   clearMessage()
 
   try {
@@ -153,13 +220,30 @@ const formatDateTime = (value) => {
   }).format(new Date(value))
 }
 
+const startCountdown = () => {
+  countdown.value = 10
+  if (countdownTimer) clearInterval(countdownTimer)
+  countdownTimer = setInterval(async () => {
+    countdown.value -= 1
+    if (countdown.value <= 0) {
+      countdown.value = 10
+      await fetchQueue(true)
+    }
+  }, 1000)
+}
+
+const handleManualRefresh = async () => {
+  countdown.value = 10
+  await fetchQueue(false)
+}
+
 onMounted(() => {
   fetchQueue()
-  autoRefreshTimer = setInterval(fetchQueue, 10000)
+  startCountdown()
 })
 
 onUnmounted(() => {
-  if (autoRefreshTimer) clearInterval(autoRefreshTimer)
+  if (countdownTimer) clearInterval(countdownTimer)
 })
 </script>
 
@@ -173,10 +257,13 @@ onUnmounted(() => {
       </div>
 
       <div class="heading-actions">
-        <button class="secondary-button" type="button" @click="fetchQueue">
-          <RefreshCcw :size="18" />
-          <span>Refresh</span>
-        </button>
+        <div class="refresh-container">
+          <span class="countdown-text">Auto refresh: {{ countdown }}s</span>
+          <button class="secondary-button" type="button" @click="handleManualRefresh">
+            <RefreshCcw :size="18" />
+            <span>Refresh</span>
+          </button>
+        </div>
 
         <button
           class="primary-button"
@@ -216,8 +303,48 @@ onUnmounted(() => {
       </article>
     </div>
 
-    <div v-if="errorMessage" class="alert error">{{ errorMessage }}</div>
+    <div v-if="errorMessage" class="alert error">
+      <span>{{ errorMessage }}</span>
+      <button
+        v-if="showRegisterPrompt"
+        class="register-prompt-btn"
+        type="button"
+        @click="redirectToRegister(unregisteredBarcode)"
+      >
+        Daftarkan Barang Baru
+      </button>
+    </div>
     <div v-if="successMessage" class="alert success">{{ successMessage }}</div>
+
+    <!-- Manual Restock Card -->
+    <article class="manual-restock-card no-print">
+      <div>
+        <h3>Restock Manual</h3>
+        <span>Input barcode & qty secara manual tanpa alat scan.</span>
+      </div>
+      <form class="manual-form" @submit.prevent="handleManualRestock">
+        <div class="input-box">
+          <input
+            v-model="manualBarcode"
+            type="text"
+            placeholder="Scan / Ketik Barcode..."
+            required
+          />
+        </div>
+        <div class="input-box qty-box">
+          <input
+            v-model.number="manualQty"
+            type="number"
+            min="1"
+            placeholder="Qty"
+            required
+          />
+        </div>
+        <button class="primary-button" type="submit" :disabled="actionLoading">
+          Tambah Stok
+        </button>
+      </form>
+    </article>
 
     <article class="queue-card">
       <div class="table-header">
@@ -259,7 +386,16 @@ onUnmounted(() => {
 
               <td>
                 <strong>{{ item.nama_barang || 'Barang Belum Terdaftar' }}</strong>
-                <span v-if="!item.item_id">Daftarkan dulu di Master Barang jika ingin dipakai.</span>
+                <span v-if="!item.item_id" class="register-hint">
+                  Daftarkan dulu di Master Barang jika ingin dipakai.
+                  <button
+                    class="register-inline-btn"
+                    type="button"
+                    @click="redirectToRegister(item.barcode)"
+                  >
+                    Daftarkan
+                  </button>
+                </span>
               </td>
 
               <td>{{ item.jumlah_masuk }} scan</td>
@@ -622,6 +758,18 @@ code {
   animation: spin 0.9s linear infinite;
 }
 
+.refresh-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.countdown-text {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 700;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -636,6 +784,17 @@ code {
     flex-direction: column;
   }
 
+  .refresh-container {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .countdown-text {
+    text-align: center;
+  }
+
   .summary-grid {
     grid-template-columns: 1fr;
   }
@@ -645,6 +804,123 @@ code {
     justify-content: center;
     width: 100%;
   }
+
+  .manual-restock-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .manual-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .manual-form .input-box.qty-box {
+    width: 100%;
+  }
+}
+
+.manual-restock-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+}
+
+.manual-restock-card h3 {
+  margin: 0 0 4px;
+  color: #111827;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.manual-restock-card span {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.manual-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.manual-form .input-box {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #f9fafb;
+}
+
+.manual-form .input-box.qty-box {
+  width: 90px;
+}
+
+.manual-form input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 14px;
+  color: #111827;
+}
+
+.register-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.register-inline-btn {
+  padding: 4px 8px;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.register-inline-btn:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.alert.error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.register-prompt-btn {
+  padding: 6px 12px;
+  background: #b91c1c;
+  color: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.register-prompt-btn:hover {
+  opacity: 0.9;
 }
 </style>
 

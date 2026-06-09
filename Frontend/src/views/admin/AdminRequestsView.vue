@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
   AlertCircle,
@@ -33,6 +33,8 @@ const search = ref('')
 const statusFilter = ref('all')
 const scanBarcode = ref('')
 let autoRefreshTimer = null
+const countdown = ref(10)
+let countdownTimer = null
 
 const statusOptions = [
   { label: 'Semua', value: 'all' },
@@ -103,8 +105,8 @@ const formatDate = (value) => {
   }).format(new Date(value))
 }
 
-const fetchRequests = async () => {
-  loading.value = true
+const fetchRequests = async (isSilent = false) => {
+  if (!isSilent) loading.value = true
   clearMessage()
 
   try {
@@ -115,7 +117,7 @@ const fetchRequests = async () => {
       selectedRequest.value = updatedSelected || null
 
       if (selectedRequest.value) {
-        await fetchDetails(selectedRequest.value)
+        await fetchDetails(selectedRequest.value, isSilent)
       } else {
         requestDetails.value = []
       }
@@ -130,9 +132,9 @@ const fetchRequests = async () => {
   }
 }
 
-const fetchDetails = async (request) => {
+const fetchDetails = async (request, isSilent = false) => {
   selectedRequest.value = request
-  detailLoading.value = true
+  if (!isSilent) detailLoading.value = true
   clearMessage()
 
   try {
@@ -217,6 +219,27 @@ const handleVerifyScan = async () => {
   }
 }
 
+const handleManualVerify = async (barcode) => {
+  actionLoading.value = true
+  clearMessage()
+
+  try {
+    const response = await verifyScanItem(barcode)
+    successMessage.value = response.message || 'Barang berhasil diverifikasi secara manual.'
+    
+    if (selectedRequest.value) {
+      await fetchDetails(selectedRequest.value)
+    }
+  } catch (error) {
+    errorMessage.value =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      'Gagal verifikasi manual.'
+  } finally {
+    actionLoading.value = false
+  }
+}
+
 const handleComplete = async () => {
   if (!selectedRequest.value) return
 
@@ -240,13 +263,30 @@ const handleComplete = async () => {
   }
 }
 
+const startCountdown = () => {
+  countdown.value = 10
+  if (countdownTimer) clearInterval(countdownTimer)
+  countdownTimer = setInterval(async () => {
+    countdown.value -= 1
+    if (countdown.value <= 0) {
+      countdown.value = 10
+      await fetchRequests(true)
+    }
+  }, 1000)
+}
+
+const handleManualRefresh = async () => {
+  countdown.value = 10
+  await fetchRequests(false)
+}
+
 onMounted(() => {
   fetchRequests()
-  autoRefreshTimer = setInterval(fetchRequests, 10000)
+  startCountdown()
 })
 
 onUnmounted(() => {
-  if (autoRefreshTimer) clearInterval(autoRefreshTimer)
+  if (countdownTimer) clearInterval(countdownTimer)
 })
 </script>
 
@@ -259,10 +299,13 @@ onUnmounted(() => {
         <span>Review request karyawan, approve/reject, lalu proses serah terima barang.</span>
       </div>
 
-      <button class="primary-button" type="button" @click="fetchRequests">
-        <RefreshCcw :size="18" />
-        <span>Refresh</span>
-      </button>
+      <div class="refresh-container">
+        <span class="countdown-text">Auto refresh: {{ countdown }}s</span>
+        <button class="primary-button" type="button" @click="handleManualRefresh">
+          <RefreshCcw :size="18" />
+          <span>Refresh</span>
+        </button>
+      </div>
     </div>
 
     <div class="summary-grid">
@@ -475,7 +518,17 @@ onUnmounted(() => {
 
               <div class="detail-side">
                 <b>{{ detail.jumlah }} pcs</b>
-                <span>{{ detail.is_scanned ? 'Scanned' : 'Belum Scan' }}</span>
+                <span v-if="detail.is_scanned" class="scanned-status">Scanned</span>
+                <button
+                  v-else-if="selectedRequest.status === 'processing'"
+                  class="verify-manual-btn"
+                  type="button"
+                  :disabled="actionLoading"
+                  @click="handleManualVerify(detail.barcode)"
+                >
+                  Verify Manual
+                </button>
+                <span v-else>Belum Scan</span>
               </div>
 
               <a
@@ -957,6 +1010,18 @@ button:disabled {
   animation: spin 0.9s linear infinite;
 }
 
+.refresh-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.countdown-text {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 700;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -981,6 +1046,17 @@ button:disabled {
     flex-direction: column;
   }
 
+  .refresh-container {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .countdown-text {
+    text-align: center;
+  }
+
   .summary-grid,
   .toolbar {
     grid-template-columns: 1fr;
@@ -992,6 +1068,30 @@ button:disabled {
   .danger-button {
     width: 100%;
   }
+}
+
+.verify-manual-btn {
+  height: 30px;
+  padding: 0 10px;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.verify-manual-btn:hover:not(:disabled) {
+  background: #047857;
+  color: #ffffff;
+  border-color: #047857;
+}
+
+.scanned-status {
+  font-weight: 800;
+  color: #047857;
 }
 </style>
 
