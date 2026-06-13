@@ -41,7 +41,7 @@ const currentMonthRequests = computed(() => {
 
 const lowStockItems = computed(() => {
   return items.value
-    .filter((item) => Number(item.stok_aktual) < 10)
+    .filter((item) => Number(item.stok_aktual) < Number(item.stok_safety || 10))
     .sort((a, b) => Number(a.stok_aktual) - Number(b.stok_aktual))
     .slice(0, 5)
 })
@@ -104,7 +104,7 @@ const stats = computed(() => [
   {
     label: 'Stok Menipis',
     value: lowStockItems.value.length,
-    helper: 'Barang dengan stok di bawah 10',
+    helper: 'Barang di bawah limit safety',
     icon: AlertTriangle,
   },
   {

@@ -61,7 +61,7 @@ exports.getItemById = async (req, res) => {
 // ==========================================
 exports.createItem = async (req, res) => {
     try {
-        const { barcode, nama_barang, jenis, stok_aktual, foto_base64 } = req.body;
+        const { barcode, nama_barang, jenis, stok_aktual, foto_base64, stok_min, stok_safety, stok_max, rata_kebutuhan_bulanan, harga_per_unit } = req.body;
 
         // Cek apakah barcode sudah ada
         const itemExist = await pool.query('SELECT * FROM items WHERE barcode = $1', [barcode]);
@@ -87,8 +87,8 @@ exports.createItem = async (req, res) => {
         }
 
         const newItem = await pool.query(
-            'INSERT INTO items (barcode, nama_barang, jenis, stok_aktual, foto_barang) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-            [barcode, nama_barang, jenis, stok_aktual || 0, finalPhotoUrl]
+            'INSERT INTO items (barcode, nama_barang, jenis, stok_aktual, foto_barang, stok_min, stok_safety, stok_max, rata_kebutuhan_bulanan, harga_per_unit) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
+            [barcode, nama_barang, jenis, stok_aktual || 0, finalPhotoUrl, stok_min || 0, stok_safety || 0, stok_max || 0, rata_kebutuhan_bulanan || 0, harga_per_unit || 0]
         );
 
         res.status(201).json({
@@ -107,7 +107,7 @@ exports.createItem = async (req, res) => {
 exports.updateItem = async (req, res) => {
     try {
         const { id } = req.params;
-        const { barcode, nama_barang, jenis, foto_base64 } = req.body;
+        const { barcode, nama_barang, jenis, foto_base64, stok_min, stok_safety, stok_max, rata_kebutuhan_bulanan, harga_per_unit } = req.body;
 
         let finalPhotoUrl = null;
 
@@ -124,15 +124,17 @@ exports.updateItem = async (req, res) => {
             finalPhotoUrl = supabase.storage.from('uploads').getPublicUrl(fileName).data.publicUrl;
         }
 
-        // COALESCE digunakan agar jika finalPhotoUrl null (Admin tidak ganti foto), foto lama tetap dipertahankan
+        // COALESCE digunakan agar jika finalPhotoUrl null (Admin tidak ganti foto), foto lama tetap dipertahaman
         const query = `
             UPDATE items 
             SET barcode = $1, nama_barang = $2, jenis = $3, 
                 foto_barang = COALESCE($4, foto_barang), 
+                stok_min = $5, stok_safety = $6, stok_max = $7,
+                rata_kebutuhan_bulanan = $8, harga_per_unit = $9,
                 updated_at = CURRENT_TIMESTAMP 
-            WHERE id = $5 RETURNING *
+            WHERE id = $10 RETURNING *
         `;
-        const result = await pool.query(query, [barcode, nama_barang, jenis, finalPhotoUrl, id]);
+        const result = await pool.query(query, [barcode, nama_barang, jenis, finalPhotoUrl, stok_min || 0, stok_safety || 0, stok_max || 0, rata_kebutuhan_bulanan || 0, harga_per_unit || 0, id]);
 
         if (result.rows.length === 0) return res.status(404).json({ message: 'Barang tidak ditemukan' });
         res.json({ message: 'Data barang berhasil diupdate!', data: result.rows[0] });

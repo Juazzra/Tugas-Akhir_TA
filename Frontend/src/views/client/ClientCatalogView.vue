@@ -169,6 +169,15 @@ const submitRequest = async () => {
 }
 
 onMounted(fetchItems)
+
+const formatPrice = (value) => {
+  if (value === undefined || value === null) return 'Rp 0'
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+  }).format(value)
+}
 </script>
 
 <template>
@@ -236,6 +245,11 @@ onMounted(fetchItems)
               <div class="stock-row">
                 <span>Stok tersedia</span>
                 <strong>{{ item.stok_aktual }} pcs</strong>
+              </div>
+
+              <div class="stock-row">
+                <span>Harga / unit</span>
+                <strong>{{ formatPrice(item.harga_per_unit) }}</strong>
               </div>
 
               <button class="primary-button" type="button" @click="handleAddToCart(item)">

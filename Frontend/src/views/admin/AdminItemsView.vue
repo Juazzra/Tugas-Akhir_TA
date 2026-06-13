@@ -38,6 +38,11 @@ const form = ref({
   jenis: '',
   stok_aktual: 0,
   foto_base64: '',
+  stok_min: 0,
+  stok_safety: 0,
+  stok_max: 0,
+  rata_kebutuhan_bulanan: 0,
+  harga_per_unit: 0,
 })
 
 const modalTitle = computed(() => (editingItem.value ? 'Edit Barang' : 'Tambah Barang'))
@@ -49,6 +54,11 @@ const resetForm = () => {
     jenis: '',
     stok_aktual: 0,
     foto_base64: '',
+    stok_min: 0,
+    stok_safety: 0,
+    stok_max: 0,
+    rata_kebutuhan_bulanan: 0,
+    harga_per_unit: 0,
   }
   editingItem.value = null
 }
@@ -94,6 +104,11 @@ const handleExportCsv = () => {
     nama_barang: item.nama_barang || '',
     jenis: item.jenis || '',
     stok_aktual: item.stok_aktual ?? 0,
+    stok_min: item.stok_min ?? 0,
+    stok_safety: item.stok_safety ?? 0,
+    stok_max: item.stok_max ?? 0,
+    rata_kebutuhan_bulanan: item.rata_kebutuhan_bulanan ?? 0,
+    harga_per_unit: item.harga_per_unit ?? 0,
     status: item.is_active ? 'Aktif' : 'Nonaktif',
     foto_barang: item.foto_barang || '',
     created_at: item.created_at || '',
@@ -118,6 +133,11 @@ const openEditModal = (item) => {
     jenis: item.jenis || '',
     stok_aktual: item.stok_aktual || 0,
     foto_base64: '',
+    stok_min: item.stok_min || 0,
+    stok_safety: item.stok_safety || 0,
+    stok_max: item.stok_max || 0,
+    rata_kebutuhan_bulanan: item.rata_kebutuhan_bulanan || 0,
+    harga_per_unit: item.harga_per_unit || 0,
   }
   isModalOpen.value = true
 }
@@ -149,6 +169,11 @@ const handleSubmit = async () => {
         nama_barang: form.value.nama_barang,
         jenis: form.value.jenis,
         foto_base64: form.value.foto_base64,
+        stok_min: Number(form.value.stok_min) || 0,
+        stok_safety: Number(form.value.stok_safety) || 0,
+        stok_max: Number(form.value.stok_max) || 0,
+        rata_kebutuhan_bulanan: Number(form.value.rata_kebutuhan_bulanan) || 0,
+        harga_per_unit: Number(form.value.harga_per_unit) || 0,
       })
 
       successMessage.value = 'Data barang berhasil diperbarui.'
@@ -159,6 +184,11 @@ const handleSubmit = async () => {
         jenis: form.value.jenis,
         stok_aktual: Number(form.value.stok_aktual) || 0,
         foto_base64: form.value.foto_base64,
+        stok_min: Number(form.value.stok_min) || 0,
+        stok_safety: Number(form.value.stok_safety) || 0,
+        stok_max: Number(form.value.stok_max) || 0,
+        rata_kebutuhan_bulanan: Number(form.value.rata_kebutuhan_bulanan) || 0,
+        harga_per_unit: Number(form.value.harga_per_unit) || 0,
       })
 
       successMessage.value = 'Barang baru berhasil ditambahkan.'
@@ -220,6 +250,15 @@ watch(
     }
   }
 )
+
+const formatPrice = (value) => {
+  if (value === undefined || value === null) return 'Rp 0'
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+  }).format(value)
+}
 </script>
 
 <template>
@@ -292,6 +331,7 @@ watch(
               <th>Nama Barang</th>
               <th>Jenis</th>
               <th>Stok</th>
+              <th>Harga/Unit</th>
               <th>Status</th>
               <th class="text-right">Aksi</th>
             </tr>
@@ -322,9 +362,18 @@ watch(
               <td>{{ item.jenis || '-' }}</td>
 
               <td>
-                <span :class="['stock-pill', item.stok_aktual < 5 ? 'danger' : 'safe']">
-                  {{ item.stok_aktual }} pcs
-                </span>
+                <div class="stock-info">
+                  <span :class="['stock-pill', item.stok_aktual < item.stok_min ? 'danger' : (item.stok_aktual < item.stok_safety ? 'warning' : 'safe')]">
+                    {{ item.stok_aktual }} pcs
+                  </span>
+                  <div class="stock-limits">
+                    Min: {{ item.stok_min || 0 }} | Max: {{ item.stok_max || 0 }}
+                  </div>
+                </div>
+              </td>
+
+              <td>
+                <strong>{{ formatPrice(item.harga_per_unit) }}</strong>
               </td>
 
               <td>
@@ -345,7 +394,7 @@ watch(
             </tr>
 
             <tr v-if="items.length === 0">
-              <td colspan="7">
+              <td colspan="8">
                 <div class="empty-state">
                   <Boxes :size="30" />
                   <strong>Data barang belum ditemukan</strong>
@@ -402,6 +451,32 @@ watch(
           <span>Stok Awal</span>
           <input v-model="form.stok_aktual" type="number" min="0" placeholder="0" />
         </label>
+
+        <div class="form-row">
+          <label class="form-group">
+            <span>Stok Min</span>
+            <input v-model="form.stok_min" type="number" min="0" placeholder="0" />
+          </label>
+          <label class="form-group">
+            <span>Safety Stock</span>
+            <input v-model="form.stok_safety" type="number" min="0" placeholder="0" />
+          </label>
+          <label class="form-group">
+            <span>Stok Max</span>
+            <input v-model="form.stok_max" type="number" min="0" placeholder="0" />
+          </label>
+        </div>
+
+        <div class="form-row">
+          <label class="form-group">
+            <span>Rata-rata Kebutuhan / Bulan</span>
+            <input v-model="form.rata_kebutuhan_bulanan" type="number" min="0" placeholder="0" />
+          </label>
+          <label class="form-group">
+            <span>Harga / Unit (Rp)</span>
+            <input v-model="form.harga_per_unit" type="number" min="0" placeholder="0" />
+          </label>
+        </div>
 
         <label class="form-group">
           <span>Foto Barang</span>
@@ -863,6 +938,23 @@ code {
     justify-content: center;
     width: 100%;
   }
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.stock-limits {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.stock-pill.warning {
+  background: #fffbeb;
+  color: #d97706;
 }
 </style>
 

@@ -55,6 +55,11 @@ CREATE TABLE public.items (
     nama_barang character varying(150) NOT NULL,
     jenis character varying(50),
     stok_aktual integer DEFAULT 0 NOT NULL,
+    stok_min integer DEFAULT 0,
+    stok_safety integer DEFAULT 0,
+    stok_max integer DEFAULT 0,
+    rata_kebutuhan_bulanan integer DEFAULT 0,
+    harga_per_unit numeric(15,2) DEFAULT 0.00,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT items_stok_aktual_check CHECK ((stok_aktual >= 0))
