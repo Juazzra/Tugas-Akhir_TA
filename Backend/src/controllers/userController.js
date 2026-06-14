@@ -1,8 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
-const { createClient } = require('@supabase/supabase-js');
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+const storage = require('../utils/storage');
 
 // ==========================================
 // REGISTER KARYAWAN / ADMIN
@@ -267,16 +266,8 @@ exports.uploadFotoProfil = async (req, res) => {
         // 2. Set lokasi file di Supabase (uploads > EmplyProfile)
         const fileName = `EmplyProfile/profil_${user_id}_${Date.now()}.jpg`;
 
-        // 3. Upload ke Cloud
-        const { error } = await supabase.storage
-            .from('uploads')
-            .upload(fileName, buffer, { contentType, upsert: true });
-
-        if (error) throw error;
-
-        // 4. Dapatkan URL Publik
-        const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(fileName);
-        const finalPhotoUrl = publicUrlData.publicUrl;
+        // 3. Upload file
+        const finalPhotoUrl = await storage.uploadFile(fileName, buffer, contentType);
 
         // 5. Simpan URL ke database users
         await pool.query('UPDATE users SET foto_profil = $1 WHERE id = $2', [finalPhotoUrl, user_id]);

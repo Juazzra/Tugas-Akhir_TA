@@ -1,6 +1,5 @@
 const pool = require('../config/db');
-const { createClient } = require('@supabase/supabase-js');
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+const storage = require('../utils/storage');
 // ==========================================
 // KARYAWAN & ADMIN: LIHAT BARANG (Paginasi & Search)
 // ==========================================
@@ -80,10 +79,7 @@ exports.createItem = async (req, res) => {
             // Simpan di direktori 'uploads/Items'
             const fileName = `Items/item_${barcode}_${Date.now()}.jpg`;
 
-            const { error } = await supabase.storage.from('uploads').upload(fileName, buffer, { contentType, upsert: true });
-            if (error) throw error;
-            
-            finalPhotoUrl = supabase.storage.from('uploads').getPublicUrl(fileName).data.publicUrl;
+            finalPhotoUrl = await storage.uploadFile(fileName, buffer, contentType);
         }
 
         const newItem = await pool.query(
@@ -118,10 +114,7 @@ exports.updateItem = async (req, res) => {
             const contentType = foto_base64.split(';')[0].split(':')[1];
             const fileName = `Items/item_update_${id}_${Date.now()}.jpg`;
 
-            const { error } = await supabase.storage.from('uploads').upload(fileName, buffer, { contentType, upsert: true });
-            if (error) throw error;
-            
-            finalPhotoUrl = supabase.storage.from('uploads').getPublicUrl(fileName).data.publicUrl;
+            finalPhotoUrl = await storage.uploadFile(fileName, buffer, contentType);
         }
 
         // COALESCE digunakan agar jika finalPhotoUrl null (Admin tidak ganti foto), foto lama tetap dipertahaman

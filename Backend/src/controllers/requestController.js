@@ -1,6 +1,5 @@
 const pool = require('../config/db');
-const { createClient } = require('@supabase/supabase-js');
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+const storage = require('../utils/storage');
 
 // ==========================================
 // KARYAWAN: BUAT REQUEST (OPTIMASI PROMISE.ALL)
@@ -44,10 +43,7 @@ exports.createRequest = async (req, res) => {
                 const contentType = item.foto_bukti.split(';')[0].split(':')[1];
                 const filePath = `BuktiAlasan/req_${request_id}_item_${item.item_id.substring(0,8)}_${Date.now()}.jpg`;
 
-                const { error } = await supabase.storage.from('uploads').upload(filePath, buffer, { contentType, upsert: true });
-                if (error) throw error;
-
-                finalPhotoUrl = supabase.storage.from('uploads').getPublicUrl(filePath).data.publicUrl;
+                finalPhotoUrl = await storage.uploadFile(filePath, buffer, contentType);
             }
             return { ...item, finalPhotoUrl };
         });
