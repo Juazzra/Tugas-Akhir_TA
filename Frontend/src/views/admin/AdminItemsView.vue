@@ -25,7 +25,7 @@ const successMessage = ref('')
 
 const search = ref('')
 const page = ref(1)
-const limit = ref(5)
+const limit = ref(10)
 const totalItems = ref(0)
 const totalPages = ref(1)
 

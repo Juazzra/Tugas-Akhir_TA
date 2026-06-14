@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   Edit3,
   IdCard,
@@ -22,6 +22,8 @@ const saving = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 const search = ref('')
+const page = ref(1)
+const limit = ref(10)
 
 const isModalOpen = ref(false)
 const editingUser = ref(null)
@@ -52,8 +54,31 @@ const filteredUsers = computed(() => {
   })
 })
 
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredUsers.value.length / limit.value)))
+
+const paginatedUsers = computed(() => {
+  const start = (page.value - 1) * limit.value
+  const end = start + limit.value
+  return filteredUsers.value.slice(start, end)
+})
+
 const totalAdmin = computed(() => users.value.filter((user) => user.role === 'admin').length)
 const totalKaryawan = computed(() => users.value.filter((user) => user.role === 'karyawan').length)
+
+watch(search, () => {
+  page.value = 1
+})
+
+watch(totalPages, () => {
+  if (page.value > totalPages.value) {
+    page.value = totalPages.value
+  }
+})
+
+const goToPage = (targetPage) => {
+  if (targetPage < 1 || targetPage > totalPages.value || targetPage === page.value) return
+  page.value = targetPage
+}
 
 const clearMessage = () => {
   errorMessage.value = ''
@@ -265,7 +290,7 @@ onMounted(fetchUsers)
       <div class="table-header">
         <div>
           <h2>Daftar Karyawan</h2>
-          <p>Menampilkan {{ filteredUsers.length }} dari {{ users.length }} akun</p>
+          <p>Menampilkan {{ paginatedUsers.length }} dari {{ filteredUsers.length }} akun � Halaman {{ page }} dari {{ totalPages }}</p>
         </div>
       </div>
 
@@ -289,7 +314,7 @@ onMounted(fetchUsers)
           </thead>
 
           <tbody>
-            <tr v-for="user in filteredUsers" :key="user.id">
+            <tr v-for="user in paginatedUsers" :key="user.id">
               <td>
                 <img
                   v-if="user.foto_profil"
@@ -350,6 +375,18 @@ onMounted(fetchUsers)
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div v-if="filteredUsers.length > 0" class="pagination">
+        <button type="button" :disabled="page <= 1" @click="goToPage(page - 1)">
+          Sebelumnya
+        </button>
+
+        <span>Halaman {{ page }} dari {{ totalPages }}</span>
+
+        <button type="button" :disabled="page >= totalPages" @click="goToPage(page + 1)">
+          Berikutnya
+        </button>
       </div>
     </article>
 
@@ -474,6 +511,36 @@ onMounted(fetchUsers)
   display: block;
   margin-top: 6px;
   color: #6b7280;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.pagination button {
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.pagination button:disabled {
+  background: #d1d5db;
+  cursor: not-allowed;
+}
+
+.pagination span {
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .summary-grid {
