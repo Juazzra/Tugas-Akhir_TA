@@ -23,8 +23,11 @@ export const startRequestProcess = async (id) => {
   return response.data
 }
 
-export const completeRequestHandover = async (id) => {
-  const response = await api.post(`/requests/${id}/complete`)
+export const completeRequestHandover = async (id, pengambilan_oleh = 'ambil_sendiri') => {
+  const response = await api.post(`/requests/${id}/complete`, {
+    pengambilan_oleh,
+  })
+
   return response.data
 }
 

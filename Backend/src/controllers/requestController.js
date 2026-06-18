@@ -205,6 +205,12 @@ exports.completeHandover = async (req, res) => {
     try {
         const { id } = req.params;
         const admin_id = req.user.id;
+        const { pengambilan_oleh = 'ambil_sendiri' } = req.body;
+
+        const allowedPengambilan = ['ambil_sendiri', 'admin_departemen', 'admin_hrga'];
+        if (!allowedPengambilan.includes(pengambilan_oleh)) {
+            throw new Error('Pilihan pengambilan tidak valid!');
+        }
 
         await client.query('BEGIN');
 
@@ -234,7 +240,10 @@ exports.completeHandover = async (req, res) => {
             );
         }
 
-        await client.query("UPDATE request_header SET status = 'completed' WHERE id = $1", [id]);
+        await client.query(
+            "UPDATE request_header SET status = 'completed', pengambilan_oleh = $2 WHERE id = $1",
+            [id, pengambilan_oleh]
+        );
         await client.query('COMMIT');
         res.json({ message: 'Transaksi Sukses! Stok gudang dipotong otomatis.' });
 

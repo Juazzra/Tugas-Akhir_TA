@@ -282,3 +282,42 @@ exports.uploadFotoProfil = async (req, res) => {
         res.status(500).json({ message: 'Server error saat upload foto profil' });
     }
 };
+
+// ==========================================
+// ADMIN: LIHAT RIWAYAT TRANSAKSI KARYAWAN
+// ==========================================
+exports.getUserTransactionHistory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const limit = parseInt(req.query.limit || 10);
+
+        const query = `
+            SELECT
+                il.id,
+                (il.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta') AS created_at,
+                i.nama_barang,
+                i.barcode,
+                il.tipe_transaksi,
+                il.qty,
+                admin.nama AS pic_admin,
+                rh.status AS status_request
+            FROM inventory_logs il
+            JOIN request_header rh ON il.referensi_id = rh.id
+            JOIN items i ON il.item_id = i.id
+            LEFT JOIN users admin ON il.user_id = admin.id
+            WHERE rh.user_id = $1
+              AND il.tipe_transaksi = 'OUT'
+            ORDER BY il.created_at DESC
+            LIMIT $2
+        `;
+
+        const result = await pool.query(query, [id, limit]);
+
+        res.json({
+            data: result.rows
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Server error saat mengambil riwayat transaksi karyawan' });
+    }
+};

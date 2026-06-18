@@ -52,3 +52,14 @@ export const uploadMyProfilePhoto = async (fotoBase64) => {
 
   return response.data
 }
+
+
+export const getUserTransactionHistory = async (id, limit = 10) => {
+  const response = await api.get(`/users/${id}/transactions`, {
+    params: {
+      limit,
+    },
+  })
+
+  return response.data
+}

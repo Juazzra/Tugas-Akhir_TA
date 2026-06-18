@@ -32,6 +32,7 @@ const successMessage = ref('')
 const search = ref('')
 const statusFilter = ref('all')
 const scanBarcode = ref('')
+const pengambilanOleh = ref('ambil_sendiri')
 let autoRefreshTimer = null
 const countdown = ref(10)
 let countdownTimer = null
@@ -52,6 +53,12 @@ const statusLabel = {
   processing: 'Serah Terima',
   completed: 'Completed',
 }
+
+const pengambilanOptions = [
+  { label: 'Ambil sendiri', value: 'ambil_sendiri' },
+  { label: 'Admin Departemen', value: 'admin_departemen' },
+  { label: 'Admin HRGA', value: 'admin_hrga' },
+]
 
 const statusClass = {
   pending: 'pending',
@@ -250,7 +257,7 @@ const handleComplete = async () => {
   clearMessage()
 
   try {
-    await completeRequestHandover(selectedRequest.value.id)
+    await completeRequestHandover(selectedRequest.value.id, pengambilanOleh.value)
     successMessage.value = 'Transaksi selesai. Stok gudang berhasil dipotong.'
     await fetchRequests()
   } catch (error) {
@@ -494,6 +501,19 @@ onUnmounted(() => {
                 Scan
               </button>
             </form>
+
+            <label class="handover-select">
+              <span>Pengambilan oleh:</span>
+              <select v-model="pengambilanOleh">
+                <option
+                  v-for="option in pengambilanOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
+            </label>
           </div>
 
           <div v-if="detailLoading" class="loading-state">
@@ -555,6 +575,35 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.handover-select {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.handover-select span {
+  color: #374151;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.handover-select select {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+  outline: none;
+}
+
+.handover-select select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
 .requests-page {
   display: grid;
   gap: 20px;

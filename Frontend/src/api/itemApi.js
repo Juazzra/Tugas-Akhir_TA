@@ -32,11 +32,13 @@ export const deleteItem = async (id) => {
   return response.data
 }
 
-export const getInventoryLogs = async ({ page = 1, limit = 10 } = {}) => {
+export const getInventoryLogs = async ({ page = 1, limit = 10, startDate = '', endDate = '' } = {}) => {
   const response = await api.get('/items/logs', {
     params: {
       page,
       limit,
+      startDate,
+      endDate,
     },
   })
 

@@ -159,29 +159,66 @@ exports.deleteItem = async (req, res) => {
 // ==========================================
 exports.getInventoryLogs = async (req, res) => {
     try {
-        const { page = 1, limit = 10 } = req.query;
-        const offset = (page - 1) * limit;
+        const { page = 1, limit = 10, startDate, endDate } = req.query;
 
-        const countResult = await pool.query('SELECT COUNT(*) FROM inventory_logs');
-        const totalItems = parseInt(countResult.rows[0].count);
+        const pageNumber = parseInt(page, 10) || 1;
+        const limitNumber = parseInt(limit, 10) || 10;
+        const offset = (pageNumber - 1) * limitNumber;
 
-        const query = `
-            SELECT il.id, (il.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta') AS created_at, i.nama_barang, il.tipe_transaksi, il.qty, u.nama AS pic_admin
-            FROM inventory_logs il
-            JOIN items i ON il.item_id = i.id
-            LEFT JOIN users u ON il.user_id = u.id
-            ORDER BY il.created_at DESC
-            LIMIT $1 OFFSET $2
-        `;
-        const result = await pool.query(query, [limit, offset]);
+        const whereConditions = [];
+        const params = [];
+
+        if (startDate) {
+            params.push(startDate);
+            whereConditions.push('il.created_at >= $' + params.length + '::date');
+        }
+
+        if (endDate) {
+            params.push(endDate);
+            whereConditions.push('il.created_at < ($' + params.length + "::date + INTERVAL '1 day')");
+        }
+
+        const whereSql = whereConditions.length > 0
+            ? 'WHERE ' + whereConditions.join(' AND ')
+            : '';
+
+        const countSql = 'SELECT COUNT(*) FROM inventory_logs il ' + whereSql;
+        const countResult = await pool.query(countSql, params);
+        const totalItems = parseInt(countResult.rows[0].count, 10);
+
+        const limitIndex = params.length + 1;
+        const offsetIndex = params.length + 2;
+
+        const query = [
+            'SELECT',
+            '  il.id,',
+            "  (il.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Jakarta') AS created_at,",
+            '  i.nama_barang,',
+            '  il.tipe_transaksi,',
+            '  il.qty,',
+            '  u.nama AS pic_admin,',
+            '  rh.pengambilan_oleh,',
+            "  CASE WHEN il.tipe_transaksi = 'OUT' THEN karyawan.nama ELSE NULL END AS karyawan_pengambil",
+            'FROM inventory_logs il',
+            'JOIN items i ON il.item_id = i.id',
+            'LEFT JOIN users u ON il.user_id = u.id',
+            "LEFT JOIN request_header rh ON il.referensi_id = rh.id AND il.tipe_transaksi = 'OUT'",
+            'LEFT JOIN users karyawan ON rh.user_id = karyawan.id',
+            whereSql,
+            'ORDER BY il.created_at DESC',
+            'LIMIT $' + limitIndex + ' OFFSET $' + offsetIndex
+        ].join('\n');
+
+        const result = await pool.query(query, [...params, limitNumber, offset]);
 
         res.json({
             data: result.rows,
-            totalItems: totalItems,
-            totalPages: Math.ceil(totalItems / limit),
-            currentPage: parseInt(page)
+            totalItems,
+            totalPages: Math.ceil(totalItems / limitNumber),
+            currentPage: pageNumber
         });
     } catch (err) {
+        console.error(err.message);
         res.status(500).json({ message: 'Server error saat ambil logs' });
     }
 };

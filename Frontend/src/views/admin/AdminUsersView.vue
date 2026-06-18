@@ -13,7 +13,7 @@ import {
   UsersRound,
   X,
 } from 'lucide-vue-next'
-import { createUser, deleteUser, getUsers, resetUserPin, updateUser } from '../../api/userApi'
+import { createUser, deleteUser, getUserTransactionHistory, getUsers, resetUserPin, updateUser } from '../../api/userApi'
 import { departments, getDepartmentIdByName } from '../../constants/departments'
 
 const users = ref([])
@@ -24,6 +24,10 @@ const successMessage = ref('')
 const search = ref('')
 const page = ref(1)
 const limit = ref(10)
+const expandedUserId = ref(null)
+const transactionLoadingUserId = ref(null)
+const transactionError = ref('')
+const userTransactions = ref({})
 
 const isModalOpen = ref(false)
 const editingUser = ref(null)
@@ -224,6 +228,46 @@ const handleDelete = async (user) => {
   }
 }
 
+const formatDateTime = (value) => {
+  if (!value) return '-'
+
+  return new Intl.DateTimeFormat('id-ID', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value))
+}
+
+const toggleUserTransactions = async (user) => {
+  transactionError.value = ''
+
+  if (expandedUserId.value === user.id) {
+    expandedUserId.value = null
+    return
+  }
+
+  expandedUserId.value = user.id
+
+  if (userTransactions.value[user.id]) return
+
+  transactionLoadingUserId.value = user.id
+
+  try {
+    const response = await getUserTransactionHistory(user.id, 10)
+
+    userTransactions.value = {
+      ...userTransactions.value,
+      [user.id]: response.data || [],
+    }
+  } catch (error) {
+    transactionError.value =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      'Gagal mengambil riwayat transaksi karyawan.'
+  } finally {
+    transactionLoadingUserId.value = null
+  }
+}
+
 onMounted(fetchUsers)
 </script>
 
@@ -314,7 +358,8 @@ onMounted(fetchUsers)
           </thead>
 
           <tbody>
-            <tr v-for="user in paginatedUsers" :key="user.id">
+            <template v-for="user in paginatedUsers" :key="user.id">
+            <tr>
               <td>
                 <img
                   v-if="user.foto_profil"
@@ -332,7 +377,10 @@ onMounted(fetchUsers)
               </td>
 
               <td>
-                <strong>{{ user.nama || '-' }}</strong>
+                <button class="name-link" type="button" @click="toggleUserTransactions(user)">
+                  {{ user.nama || '-' }}
+                </button>
+                <span class="name-hint">Klik untuk riwayat transaksi</span>
               </td>
 
               <td>{{ user.departemen || '-' }}</td>
@@ -363,6 +411,55 @@ onMounted(fetchUsers)
                 </div>
               </td>
             </tr>
+
+            <tr v-if="expandedUserId === user.id" class="history-row">
+              <td colspan="7">
+                <div class="history-panel">
+                  <div class="history-panel-header">
+                    <div>
+                      <strong>Riwayat transaksi {{ user.nama }}</strong>
+                      <span>10 transaksi OUT terakhir</span>
+                    </div>
+                  </div>
+
+                  <div v-if="transactionLoadingUserId === user.id" class="history-loading">
+                    <Loader2 class="spin" :size="20" />
+                    <span>Memuat riwayat transaksi...</span>
+                  </div>
+
+                  <div v-else-if="transactionError" class="history-error">
+                    {{ transactionError }}
+                  </div>
+
+                  <table v-else-if="(userTransactions[user.id] || []).length > 0" class="history-table">
+                    <thead>
+                      <tr>
+                        <th>Waktu</th>
+                        <th>Barang</th>
+                        <th>Barcode</th>
+                        <th>Qty</th>
+                        <th>PIC Admin</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      <tr v-for="transaction in userTransactions[user.id]" :key="transaction.id">
+                        <td>{{ formatDateTime(transaction.created_at) }}</td>
+                        <td>{{ transaction.nama_barang || '-' }}</td>
+                        <td><code>{{ transaction.barcode || '-' }}</code></td>
+                        <td>{{ transaction.qty || 0 }}</td>
+                        <td>{{ transaction.pic_admin || '-' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <div v-else class="history-empty">
+                    Belum ada transaksi OUT untuk karyawan ini.
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </template>
 
             <tr v-if="filteredUsers.length === 0">
               <td colspan="7">
@@ -541,6 +638,101 @@ onMounted(fetchUsers)
   color: #6b7280;
   font-size: 14px;
   font-weight: 700;
+}
+
+.name-link {
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font-weight: 900;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.name-link:hover {
+  text-decoration: underline;
+}
+
+.name-hint {
+  display: block;
+  margin-top: 4px;
+  color: #9ca3af;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.history-row td {
+  background: #f9fafb;
+}
+
+.history-panel {
+  margin: 8px 0;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.history-panel-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.history-panel-header strong {
+  display: block;
+  color: #111827;
+  font-size: 15px;
+}
+
+.history-panel-header span {
+  display: block;
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.history-loading,
+.history-error,
+.history-empty {
+  padding: 14px;
+  border-radius: 14px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.history-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.history-table th,
+.history-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+.history-table th {
+  color: #6b7280;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .summary-grid {
