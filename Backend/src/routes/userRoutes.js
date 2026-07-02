@@ -19,6 +19,7 @@ router.post('/me/photo', verifyToken, userController.uploadFotoProfil);
 // ==========================================
 router.post('/register', verifyToken, isAdmin, userController.register);
 router.get('/', verifyToken, isAdmin, userController.getAllUsers);
+router.get('/:id/transactions', verifyToken, isAdmin, userController.getUserTransactionHistory);
 router.put('/:id', verifyToken, isAdmin, userController.updateUserByAdmin);
 router.put('/:id/reset-pin', verifyToken, isAdmin, userController.resetPinByAdmin);
 

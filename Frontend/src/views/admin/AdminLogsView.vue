@@ -14,6 +14,9 @@ import { exportToCsv } from '../../utils/exportCsv'
 const logs = ref([])
 const loading = ref(false)
 const errorMessage = ref('')
+const exportStartDate = ref('')
+const exportEndDate = ref('')
+const exportLoading = ref(false)
 
 const page = ref(1)
 const limit = ref(10)
@@ -56,16 +59,61 @@ const fetchLogs = async () => {
   }
 }
 
-const handleExportCsv = () => {
-  const rows = logs.value.map((log) => ({
-    waktu: formatDateTime(log.created_at),
-    nama_barang: log.nama_barang || '',
-    tipe_transaksi: log.tipe_transaksi || '',
-    qty: log.qty ?? 0,
-    pic_admin: log.pic_admin || '',
-  }))
+const formatPengambilanOleh = (value) => {
+  const labels = {
+    ambil_sendiri: 'Ambil sendiri',
+    admin_departemen: 'Admin Departemen',
+    admin_hrga: 'Admin HRGA',
+  }
 
-  exportToCsv(`riwayat-stok-page-${page.value}.csv`, rows)
+  return labels[value] || '-'
+}
+
+const handleExportCsv = async () => {
+  errorMessage.value = ''
+
+  if ((exportStartDate.value && !exportEndDate.value) || (!exportStartDate.value && exportEndDate.value)) {
+    errorMessage.value = 'Isi tanggal awal dan tanggal akhir untuk export berdasarkan range.'
+    return
+  }
+
+  if (exportStartDate.value && exportEndDate.value && exportStartDate.value > exportEndDate.value) {
+    errorMessage.value = 'Tanggal awal tidak boleh lebih besar dari tanggal akhir.'
+    return
+  }
+
+  exportLoading.value = true
+
+  try {
+    const response = await getInventoryLogs({
+      page: 1,
+      limit: 100000,
+      startDate: exportStartDate.value,
+      endDate: exportEndDate.value,
+    })
+
+    const rows = (response.data || []).map((log) => ({
+      waktu: formatDateTime(log.created_at),
+      nama_barang: log.nama_barang || '',
+      tipe_transaksi: log.tipe_transaksi || '',
+      qty: log.qty ?? 0,
+      diambil_oleh: log.tipe_transaksi === 'OUT' ? formatPengambilanOleh(log.pengambilan_oleh) : '',
+      karyawan_pengambil: log.karyawan_pengambil || '',
+    }))
+
+    const suffix = exportStartDate.value && exportEndDate.value
+      ? `${exportStartDate.value}-sd-${exportEndDate.value}`
+      : `page-${page.value}`
+
+    exportToCsv(`riwayat-stok-${suffix}.csv`, rows)
+  } catch (error) {
+    errorMessage.value =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      'Gagal export CSV riwayat stok.'
+  } finally {
+    exportLoading.value = false
+  }
 }
 const goToPage = (targetPage) => {
   if (targetPage < 1 || targetPage > totalPages.value || targetPage === page.value) return
@@ -86,10 +134,22 @@ onMounted(fetchLogs)
         <span>Catatan transaksi barang masuk dan barang keluar dari gudang.</span>
       </div>
 
-        <button class="secondary-button" type="button" @click="handleExportCsv">
+      <div class="export-filter">
+        <label>
+          <span>Dari tanggal</span>
+          <input v-model="exportStartDate" type="date" />
+        </label>
+
+        <label>
+          <span>Sampai tanggal</span>
+          <input v-model="exportEndDate" type="date" />
+        </label>
+
+        <button class="secondary-button" type="button" :disabled="exportLoading" @click="handleExportCsv">
           <FileDown :size="18" />
-          <span>Export CSV</span>
+          <span>{{ exportLoading ? 'Exporting...' : 'Export CSV' }}</span>
         </button>
+      </div>
       <button class="primary-button" type="button" @click="fetchLogs">
         <RefreshCcw :size="18" />
         <span>Refresh</span>
@@ -126,7 +186,8 @@ onMounted(fetchLogs)
               <th>Barang</th>
               <th>Tipe</th>
               <th>Qty</th>
-              <th>PIC Admin</th>
+              <th>Diambil Oleh</th>
+              <th>Karyawan Pengambil</th>
             </tr>
           </thead>
 
@@ -150,11 +211,12 @@ onMounted(fetchLogs)
                 <b>{{ log.qty }}</b>
               </td>
 
-              <td>{{ log.pic_admin || '-' }}</td>
+              <td>{{ log.tipe_transaksi === 'OUT' ? formatPengambilanOleh(log.pengambilan_oleh) : '-' }}</td>
+              <td>{{ log.karyawan_pengambil || '-' }}</td>
             </tr>
 
             <tr v-if="logs.length === 0">
-              <td colspan="5">
+              <td colspan="6">
                 <div class="empty-state">
                   <ClipboardList :size="34" />
                   <strong>Riwayat stok belum ada</strong>
@@ -182,6 +244,39 @@ onMounted(fetchLogs)
 </template>
 
 <style scoped>
+.export-filter {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.export-filter label {
+  display: grid;
+  gap: 6px;
+}
+
+.export-filter label span {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.export-filter input {
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #111827;
+  font-weight: 700;
+  outline: none;
+}
+
+.export-filter input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
 .logs-page {
   display: grid;
   gap: 20px;

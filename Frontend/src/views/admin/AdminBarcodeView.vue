@@ -118,7 +118,94 @@ const renderBarcodes = () => {
 const handlePrint = async () => {
   await nextTick()
   renderBarcodes()
-  window.print()
+
+  const barcodeSheet = document.querySelector('.barcode-sheet')
+  if (!barcodeSheet) return
+
+  const printWindow = window.open('', '_blank', 'width=1000,height=800')
+
+  if (!printWindow) {
+    alert('Popup print diblokir browser. Izinkan popup untuk halaman ini.')
+    return
+  }
+
+  printWindow.document.open()
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>Barcode</title>
+        <style>
+          @page {
+            size: A4;
+            margin: 8mm;
+          }
+
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: Arial, sans-serif;
+          }
+
+          .barcode-sheet {
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 9mm;
+          }
+
+          .barcode-label {
+            min-height: 46mm;
+            display: grid;
+            place-items: center;
+            padding: 5mm;
+            border: 1px solid #000000;
+            page-break-inside: avoid;
+            break-inside: avoid;
+            text-align: center;
+          }
+
+          .barcode-label h3 {
+            margin: 0;
+            color: #000000;
+            font-size: 13px;
+            line-height: 1.2;
+            font-weight: 800;
+            text-transform: uppercase;
+          }
+
+          .barcode-label svg {
+            width: 96%;
+            max-width: 100%;
+            height: auto;
+          }
+
+          .barcode-label p {
+            margin: 0;
+            color: #000000;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="barcode-sheet">${barcodeSheet.innerHTML}</div>
+        <script>
+          window.onload = function () {
+            window.focus()
+            window.print()
+          }
+        <\/script>
+      </body>
+    </html>
+  `)
+  printWindow.document.close()
 }
 
 watch([selectedIds, copiesMap, barcodeRows], async () => {
@@ -484,7 +571,7 @@ onMounted(fetchItems)
 
 .barcode-sheet {
   display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
   gap: 14px;
 }
 
@@ -580,7 +667,7 @@ onMounted(fetchItems)
 
   .barcode-sheet {
     display: grid !important;
-    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-columns: repeat(2, 1fr) !important;
     gap: 8mm !important;
   }
 
@@ -638,7 +725,7 @@ onMounted(fetchItems)
 
   .barcode-sheet {
     display: grid !important;
-    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-columns: repeat(2, 1fr) !important;
     gap: 8mm !important;
     padding: 0 !important;
     margin: 0 !important;
@@ -655,3 +742,124 @@ onMounted(fetchItems)
 }
 </style>
 
+
+
+@media print {
+  @page {
+    margin: 8mm;
+  }
+
+  :global(.mobile-header),
+  :global(.topbar),
+  :global(.sidebar),
+  :global(.sidebar-backdrop),
+  :global(.no-print),
+  .no-print,
+  .page-heading,
+  .selection-panel,
+  .preview-header {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  :global(.admin-layout),
+  :global(.main-area),
+  :global(.content) {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .barcode-page,
+  .main-grid,
+  .preview-panel,
+  .barcode-sheet {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .barcode-sheet {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8mm !important;
+  }
+
+  .barcode-label {
+    border: 1px solid #000000 !important;
+    border-radius: 0 !important;
+    min-height: 32mm !important;
+    padding: 4mm !important;
+    page-break-inside: avoid;
+  }
+}
+
+
+@media print {
+  @page {
+    margin: 8mm;
+  }
+
+  :global(body *) {
+    visibility: hidden !important;
+  }
+
+  .barcode-sheet,
+  .barcode-sheet * {
+    visibility: visible !important;
+  }
+
+  .barcode-sheet {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8mm !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  :global(.mobile-header),
+  :global(.topbar),
+  :global(.sidebar),
+  :global(.sidebar-backdrop),
+  :global(.no-print),
+  .no-print,
+  .page-heading,
+  .selection-panel,
+  .preview-header {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  :global(.admin-layout),
+  :global(.main-area),
+  :global(.content),
+  .barcode-page,
+  .main-grid,
+  .preview-panel {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+
+  .barcode-label {
+    visibility: visible !important;
+    border: 1px solid #000000 !important;
+    border-radius: 0 !important;
+    min-height: 32mm !important;
+    padding: 4mm !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
