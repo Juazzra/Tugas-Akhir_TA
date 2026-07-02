@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const itemController = require('../controllers/itemController');
-const { verifyToken, isAdmin } = require('../middleware/authMiddleware');
+const itemController = require('../controllers/itemcontroller');
+const { verifyToken, isAdmin } = require('../middleware/authmiddleware');
 
 // Endpoint yang bisa diakses Admin & Karyawan
 router.get('/', verifyToken, itemController.getAllItems);

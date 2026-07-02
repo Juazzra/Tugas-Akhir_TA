@@ -19,7 +19,7 @@ console.log('Cek URL:', process.env.DATABASE_URL ? 'URL Terdeteksi' : 'URL KOSON
 
 pool.connect((err) => {
     if (err) {
-        console.error('Buset, gagal konek ke database:', err.stack);
+        console.error('⚠️  Peringatan: Gagal konek ke database. Server tetap berjalan (Offline/Mock Mode).');
     } else {
         console.log(isLocalDb ? 'Mantap! Berhasil konek ke Local PostgreSQL.' : 'Mantap! Berhasil konek ke Supabase PostgreSQL.');
     }

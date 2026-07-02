@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
-const { verifyToken, isAdmin } = require('../middleware/authMiddleware');
+const { verifyToken, isAdmin } = require('../middleware/authmiddleware');
 
 // Endpoint Publik
 router.post('/login', userController.login);
@@ -21,7 +21,6 @@ router.post('/register', verifyToken, isAdmin, userController.register);
 router.get('/', verifyToken, isAdmin, userController.getAllUsers);
 router.put('/:id', verifyToken, isAdmin, userController.updateUserByAdmin);
 router.put('/:id/reset-pin', verifyToken, isAdmin, userController.resetPinByAdmin);
-router.put('/:id', verifyToken, isAdmin, userController.updateUserByAdmin);
 
 // Endpoint Delete (Bisa query ?type=hard atau ?type=soft)
 router.delete('/:id', verifyToken, isAdmin, userController.deleteUser);

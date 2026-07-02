@@ -99,17 +99,20 @@ exports.startProcessing = async (req, res) => {
 
         await client.query('BEGIN'); // Kunci transaksi dimulai
 
-        // Cek apakah ada nota lain yang sedang jalan
-        const checkActive = await client.query("SELECT id FROM request_header WHERE status = 'processing' FOR UPDATE");
-        if (checkActive.rows.length > 0 && checkActive.rows[0].id !== id) {
-            throw new Error(`Selesaikan atau batalkan nota ID: ${checkActive.rows[0].id} terlebih dahulu!`);
-        }
-
+        // 1. Update status ke 'processing' terlebih dahulu
         const result = await client.query(
             "UPDATE request_header SET status = 'processing', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status = 'approved' RETURNING *", [id]
         );
 
-        if (result.rows.length === 0) throw new Error('Request tidak valid/belum di-approve.');
+        if (result.rows.length === 0) {
+            throw new Error('Request tidak valid atau belum di-approve.');
+        }
+
+        // 2. Hitung jumlah sesi aktif berstatus 'processing'
+        const checkActive = await client.query("SELECT COUNT(*) FROM request_header WHERE status = 'processing'");
+        if (parseInt(checkActive.rows[0].count) > 1) {
+            throw new Error('Ada sesi serah terima lain yang sedang berjalan! Selesaikan sesi tersebut terlebih dahulu.');
+        }
         
         await client.query('COMMIT');
         res.json({ message: 'Sesi dimulai. Gerbang Scanner Terbuka.', data: result.rows[0] });

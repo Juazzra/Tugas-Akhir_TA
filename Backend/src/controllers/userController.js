@@ -8,24 +8,42 @@ const storage = require('../utils/storage');
 // ==========================================
 exports.register = async (req, res) => {
     try {
-        // Ambil data dari request body (Sesuai skema database baru)
         const { nik, pin, nama, departemen_id, nama_leader, tipe_karyawan, role } = req.body;
 
+        // 1. Validasi Kehadiran Input
+        if (!nik || !pin || !nama || !role) {
+            return res.status(400).json({ message: 'NIK, PIN, Nama, dan Role wajib diisi!' });
+        }
+
+        const cleanNik = String(nik).trim();
+        const cleanNama = String(nama).trim();
+        const cleanPin = String(pin).trim();
+        const cleanRole = String(role).trim();
+
+        if (cleanNik === '' || cleanNama === '' || cleanPin === '' || cleanRole === '') {
+            return res.status(400).json({ message: 'Input tidak boleh kosong atau hanya berisi spasi!' });
+        }
+
+        // 2. Validasi Format PIN (Wajib angka dan tepat 6 digit)
+        if (!/^\d{6}$/.test(cleanPin)) {
+            return res.status(400).json({ message: 'PIN harus berupa angka dan tepat 6 digit (contoh: 123456)!' });
+        }
+
         // Cek apakah NIK sudah terdaftar
-        const userExist = await pool.query('SELECT * FROM users WHERE nik = $1', [nik]);
+        const userExist = await pool.query('SELECT * FROM users WHERE nik = $1', [cleanNik]);
         if (userExist.rows.length > 0) {
             return res.status(400).json({ message: 'NIK sudah terdaftar!' });
         }
 
-        // Hash PIN (Sama seperti hash password)
+        // Hash PIN
         const salt = await bcrypt.genSalt(10);
-        const hashedPin = await bcrypt.hash(pin, salt);
+        const hashedPin = await bcrypt.hash(cleanPin, salt);
 
         // Masukkan data ke database
         const newUser = await pool.query(
             `INSERT INTO users (nik, pin, nama, departemen_id, nama_leader, tipe_karyawan, role) 
              VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, nik, nama, role`,
-            [nik, hashedPin, nama, departemen_id || null, nama_leader || null, tipe_karyawan || 'tetap', role]
+            [cleanNik, hashedPin, cleanNama, departemen_id || null, nama_leader || null, tipe_karyawan || 'tetap', cleanRole]
         );
 
         res.status(201).json({
@@ -34,7 +52,11 @@ exports.register = async (req, res) => {
         });
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ message: 'Server error' });
+        // Tangkap error Foreign Key Constraint (Departemen tidak valid)
+        if (err.code === '23503') {
+            return res.status(400).json({ message: 'Departemen ID yang dipilih tidak valid!' });
+        }
+        res.status(500).json({ message: 'Server error saat melakukan registrasi' });
     }
 };
 
@@ -45,8 +67,20 @@ exports.login = async (req, res) => {
     try {
         const { nik, pin } = req.body;
 
+        // 1. Validasi Kehadiran Input
+        if (!nik || !pin) {
+            return res.status(400).json({ message: 'NIK dan PIN wajib diisi!' });
+        }
+
+        const cleanNik = String(nik).trim();
+        const cleanPin = String(pin).trim();
+
+        if (cleanNik === '' || cleanPin === '') {
+            return res.status(400).json({ message: 'NIK dan PIN tidak boleh kosong!' });
+        }
+
         // Cari user berdasarkan NIK
-        const result = await pool.query('SELECT * FROM users WHERE nik = $1', [nik]);
+        const result = await pool.query('SELECT * FROM users WHERE nik = $1', [cleanNik]);
         
         if (result.rows.length === 0) {
             return res.status(400).json({ message: 'NIK atau PIN salah!' });
@@ -197,16 +231,33 @@ exports.changeMyPin = async (req, res) => {
     try {
         const { pin_lama, pin_baru } = req.body;
         
-        // 1. Ambil PIN lama dari database
+        // 1. Validasi Kehadiran Input
+        if (!pin_lama || !pin_baru) {
+            return res.status(400).json({ message: 'PIN lama dan PIN baru wajib diisi!' });
+        }
+
+        const cleanPinLama = String(pin_lama).trim();
+        const cleanPinBaru = String(pin_baru).trim();
+
+        if (cleanPinLama === '' || cleanPinBaru === '') {
+            return res.status(400).json({ message: 'PIN tidak boleh kosong!' });
+        }
+
+        // 2. Validasi Format PIN Baru (Wajib angka dan tepat 6 digit)
+        if (!/^\d{6}$/.test(cleanPinBaru)) {
+            return res.status(400).json({ message: 'PIN baru harus berupa angka dan tepat 6 digit (contoh: 123456)!' });
+        }
+        
+        // 3. Ambil PIN lama dari database
         const user = await pool.query('SELECT pin FROM users WHERE id = $1', [req.user.id]);
         
-        // 2. Cek apakah PIN lama yang diinput cocok dengan database
-        const isMatch = await bcrypt.compare(pin_lama, user.rows[0].pin);
+        // 4. Cek apakah PIN lama yang diinput cocok dengan database
+        const isMatch = await bcrypt.compare(cleanPinLama, user.rows[0].pin);
         if (!isMatch) return res.status(400).json({ message: 'PIN lama salah!' });
 
-        // 3. Hash PIN baru dan simpan
+        // 5. Hash PIN baru dan simpan
         const salt = await bcrypt.genSalt(10);
-        const hashedNewPin = await bcrypt.hash(pin_baru, salt);
+        const hashedNewPin = await bcrypt.hash(cleanPinBaru, salt);
         
         await pool.query('UPDATE users SET pin = $1 WHERE id = $2', [hashedNewPin, req.user.id]);
         res.json({ message: 'PIN berhasil diubah!' });

@@ -241,15 +241,17 @@ exports.approveRestock = async (req, res) => {
                 [item.qty, item.barcode]
             );
             
-            if (updateRes.rows.length > 0) {
-                await client.query(
-                    `INSERT INTO inventory_logs (item_id, user_id, tipe_transaksi, qty, referensi_id) 
-                     VALUES ($1, $2, 'IN', $3, NULL)`,
-                    [updateRes.rows[0].id, admin_id, item.qty]
-                );
-                // Masukkan barcode ini ke daftar sukses
-                processedBarcodes.push(item.barcode); 
+            if (updateRes.rows.length === 0) {
+                throw new Error(`Barcode ${item.barcode} tidak terdaftar di sistem! Silakan daftarkan barang tersebut terlebih dahulu.`);
             }
+
+            await client.query(
+                `INSERT INTO inventory_logs (item_id, user_id, tipe_transaksi, qty, referensi_id) 
+                 VALUES ($1, $2, 'IN', $3, NULL)`,
+                [updateRes.rows[0].id, admin_id, item.qty]
+            );
+            // Masukkan barcode ini ke daftar sukses
+            processedBarcodes.push(item.barcode);
         }
 
         // PERBAIKAN: Ubah jadi 'APPROVED', TAPI HANYA untuk barcode yang barusan disubmit dari UI

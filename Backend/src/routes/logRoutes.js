@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
-const { verifyToken, isAdmin } = require('../middleware/authMiddleware');
+const { verifyToken, isAdmin } = require('../middleware/authmiddleware');
 
 // GET /api/inventory-logs
 router.get('/', verifyToken, isAdmin, async (req, res) => {

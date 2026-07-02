@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const requestController = require('../controllers/requestController');
-const { verifyToken, isAdmin } = require('../middleware/authMiddleware');
+const { verifyToken, isAdmin } = require('../middleware/authmiddleware');
 
 // Karyawan: Membuat request baru (Checkout)
 router.post('/', verifyToken, requestController.createRequest);
