@@ -81,7 +81,7 @@ exports.login = async (req, res) => {
 
         // Cari user berdasarkan NIK
         const result = await pool.query('SELECT * FROM users WHERE nik = $1', [cleanNik]);
-        
+
         if (result.rows.length === 0) {
             return res.status(400).json({ message: 'NIK atau PIN salah!' });
         }
@@ -90,10 +90,10 @@ exports.login = async (req, res) => {
         if (user.is_active === false) {
             return res.status(403).json({ message: 'Akun Anda telah dinonaktifkan oleh Admin!' });
         }
-        
+
         // Cocokkan PIN yang diinput dengan Hash PIN di database
         const isMatch = await bcrypt.compare(pin, user.pin);
-        
+
         if (!isMatch) {
             return res.status(400).json({ message: 'NIK atau PIN salah!' });
         }
@@ -182,7 +182,7 @@ exports.resetPinByAdmin = async (req, res) => {
         const hashedPin = await bcrypt.hash('123456', salt);
 
         const result = await pool.query('UPDATE users SET pin = $1 WHERE id = $2 RETURNING id, nik', [hashedPin, id]);
-        
+
         if (result.rows.length === 0) return res.status(404).json({ message: 'User tidak ditemukan' });
         res.json({ message: 'PIN berhasil di-reset menjadi 123456' });
     } catch (err) {
@@ -230,7 +230,7 @@ exports.updateMyProfile = async (req, res) => {
 exports.changeMyPin = async (req, res) => {
     try {
         const { pin_lama, pin_baru } = req.body;
-        
+
         // 1. Validasi Kehadiran Input
         if (!pin_lama || !pin_baru) {
             return res.status(400).json({ message: 'PIN lama dan PIN baru wajib diisi!' });
@@ -247,10 +247,10 @@ exports.changeMyPin = async (req, res) => {
         if (!/^\d{6}$/.test(cleanPinBaru)) {
             return res.status(400).json({ message: 'PIN baru harus berupa angka dan tepat 6 digit (contoh: 123456)!' });
         }
-        
+
         // 3. Ambil PIN lama dari database
         const user = await pool.query('SELECT pin FROM users WHERE id = $1', [req.user.id]);
-        
+
         // 4. Cek apakah PIN lama yang diinput cocok dengan database
         const isMatch = await bcrypt.compare(cleanPinLama, user.rows[0].pin);
         if (!isMatch) return res.status(400).json({ message: 'PIN lama salah!' });
@@ -258,7 +258,7 @@ exports.changeMyPin = async (req, res) => {
         // 5. Hash PIN baru dan simpan
         const salt = await bcrypt.genSalt(10);
         const hashedNewPin = await bcrypt.hash(cleanPinBaru, salt);
-        
+
         await pool.query('UPDATE users SET pin = $1 WHERE id = $2', [hashedNewPin, req.user.id]);
         res.json({ message: 'PIN berhasil diubah!' });
     } catch (err) {
@@ -289,8 +289,8 @@ exports.deleteUser = async (req, res) => {
         console.error(err.message);
         // Tangkap error Foreign Key Constraint (Jika akun sudah punya riwayat transaksi)
         if (err.code === '23503') {
-            return res.status(400).json({ 
-                message: 'GAGAL: Akun ini tidak bisa di-Hard Delete karena sudah memiliki riwayat transaksi di gudang! Silakan gunakan opsi Soft Delete.' 
+            return res.status(400).json({
+                message: 'GAGAL: Akun ini tidak bisa di-Hard Delete karena sudah memiliki riwayat transaksi di gudang! Silakan gunakan opsi Soft Delete.'
             });
         }
         res.status(500).json({ message: 'Server error saat menghapus user' });
@@ -313,7 +313,7 @@ exports.uploadFotoProfil = async (req, res) => {
         const base64Data = foto_base64.split(',')[1];
         const buffer = Buffer.from(base64Data, 'base64');
         const contentType = foto_base64.split(';')[0].split(':')[1];
-        
+
         // 2. Set lokasi file di Supabase (uploads > EmplyProfile)
         const fileName = `EmplyProfile/profil_${user_id}_${Date.now()}.jpg`;
 
@@ -323,9 +323,9 @@ exports.uploadFotoProfil = async (req, res) => {
         // 5. Simpan URL ke database users
         await pool.query('UPDATE users SET foto_profil = $1 WHERE id = $2', [finalPhotoUrl, user_id]);
 
-        res.json({ 
-            message: 'Foto profil berhasil diupdate!', 
-            foto_profil: finalPhotoUrl 
+        res.json({
+            message: 'Foto profil berhasil diupdate!',
+            foto_profil: finalPhotoUrl
         });
 
     } catch (err) {

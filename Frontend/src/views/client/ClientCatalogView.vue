@@ -45,7 +45,7 @@ const totalItems = ref(0)
 const tglPengambilan = ref('')
 
 const availableItems = computed(() => {
-  return items.value.filter((item) => Number(item.stok_aktual) > 0)
+  return items.value
 })
 
 const clearMessage = () => {
@@ -238,9 +238,9 @@ onMounted(fetchItems)
                 <span>Stok tersedia</span>
                 <strong>{{ item.stok_aktual }} pcs</strong>
               </div>
-<button class="primary-button" type="button" @click="handleAddToCart(item)">
-                <Plus :size="17" />
-                Tambah
+<button class="primary-button" type="button" @click="handleAddToCart(item)" :disabled="item.stok_aktual <= 0">
+                <Plus v-if="item.stok_aktual > 0" :size="17" />
+                {{ item.stok_aktual > 0 ? 'Tambah' : 'Stok Habis' }}
               </button>
             </div>
           </article>
@@ -501,6 +501,12 @@ onMounted(fetchItems)
   width: 100%;
   background: #2563eb;
   color: #ffffff;
+}
+
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  background: #9ca3af;
 }
 
 .secondary-button {

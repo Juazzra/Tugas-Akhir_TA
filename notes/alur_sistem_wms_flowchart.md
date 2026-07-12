@@ -93,12 +93,13 @@ Alur ini digunakan saat barang baru datang dari vendor/supplier, atau ketika GA 
      - **Jika Barang Sudah Terdaftar di Master Data**: Layar LCD alat menampilkan: `"Antrean MASUK: [Nama Barang]"`.
 2. **Pemeriksaan Antrean & Input Kuantitas (Admin/GA)**:
    - Admin membuka dashboard menu **"Antrean Barang Masuk" (Restock Queue)** di frontend.
-   - Sistem secara otomatis mengelompokkan scan barcode pending yang sama. Contoh: jika barcode "Helm Merah" di-scan 5 kali secara fisik, sistem akan menampilkan data terkelompok dengan keterangan otomatis `jumlah_masuk = 5`.
+   - Sistem memiliki mekanisme pemblokiran duplikasi (anti-spam): **setiap barcode yang di-scan hanya akan masuk 1 kali** ke dalam daftar antrean `PENDING`.
+   - Hal ini dilakukan untuk menghindari penumpukan data di database. Admin kemudian bertugas memverifikasi fisik kardus/barang yang datang dan **memasukkan kuantitas (jumlah) secara manual** ke dalam sistem.
 3. **Eksekusi & Update Stok (Admin/GA)**:
    - Admin memverifikasi daftar barang masuk tersebut di layar dashboard.
    - Admin dapat melakukan tindakan:
      - **Menolak (Reject)**: Jika ada kesalahan scan, Admin mengklik tombol hapus antrean. Status antrean diubah menjadi **`REJECTED`** dan dibersihkan dari antrean.
-     - **Menyetujui (Approve)**: Admin memasukkan jumlah kuantitas akhir yang disetujui (default terisi otomatis sesuai jumlah scan fisik, namun dapat diedit manual jika ada penyesuaian khusus) lalu mengklik "Approve".
+     - **Menyetujui (Approve)**: Admin memasukkan jumlah kuantitas akhir barang yang disetujui berdasarkan hasil penghitungan fisik manual, lalu mengklik "Approve".
    - Setelah disetujui, sistem akan:
      - Menambah stok aktual barang di master database (`stok_aktual = stok_aktual + qty_approved`).
      - Mengubah status barcode pada tabel `scanner_queue` dari `PENDING` menjadi **`APPROVED`**.
@@ -114,7 +115,7 @@ flowchart TD
     CheckDB -- Belum --> EnqueueNew[Masukkan ke scanner_queue PENDING\nLCD: 'Barang Baru IN! Antre Didaftar'] --> CheckQueue
     CheckDB -- Sudah --> EnqueueExist[Masukkan ke scanner_queue PENDING\nLCD: 'Antrean MASUK: [Nama Barang]'] --> CheckQueue
     
-    CheckQueue[Admin Membuka Dashboard\nAntrean Barang Masuk - Restock Queue\n*Barang dikelompokkan otomatis*] --> AdminAction{Tindakan Admin/GA?}
+    CheckQueue[Admin Membuka Dashboard\nAntrean Barang Masuk - Restock Queue\n*1 Barcode = 1 Antrean, Qty diinput manual*] --> AdminAction{Tindakan Admin/GA?}
     
     AdminAction -- Hapus / Tolak --> RejectAction[Set Status Antrean: REJECTED\nHapus dari Daftar Antrean] --> End([Selesai])
     
@@ -138,3 +139,42 @@ Untuk memudahkan Manajer GA dalam melakukan pengawasan, sistem ini juga dilengka
   - **Stok Maksimum (Maximum Stock)**: Batas atas kapasitas penyimpanan efisien di gudang agar tidak terjadi penumpukan barang berlebih (*overstock*) yang memakan ruang dan anggaran belanja GA.
   - **Rata-rata Kebutuhan Bulanan**: Rata-rata konsumsi unit barang per bulan untuk membantu GA memproyeksikan kebutuhan belanja di bulan berikutnya.
 * **Audit Trail (Inventory Logs)**: Setiap pergerakan barang (IN maupun OUT) dicatat lengkap dengan timestamp yang presisi, jumlah barang, referensi nomor nota request, dan PIC (karyawan/admin) yang bertanggung jawab untuk keperluan transparansi audit gudang.
+
+---
+
+## 4. Alur Pembuatan & Pencetakan Barcode Fisik (Labeling)
+
+Sebelum barang dapat dipindai oleh alat scanner ESP32, setiap barang fisik harus memiliki label barcode yang tertempel. Admin/GA bertanggung jawab untuk mencetak label ini melalui sistem.
+
+### Penjelasan Alur Kerja:
+1. **Buka Menu Cetak Barcode (Admin/GA)**:
+   - Admin membuka dashboard dan masuk ke menu **"Cetak Barcode"**.
+   - Sistem akan memuat daftar seluruh barang yang terdaftar di Master Data (Items).
+2. **Pilih Barang & Tentukan Jumlah**:
+   - Admin memilih barang mana saja yang akan dicetak barcodenya.
+   - Admin menentukan jumlah salinan (label) untuk masing-masing barang sesuai dengan kuantitas fisik yang ada di gudang.
+3. **Preview & Cetak**:
+   - Sistem secara otomatis men-generate gambar barcode (menggunakan format *CODE128*) beserta informasi nama barang dan kategori untuk di-*preview* pada layar.
+   - Admin menekan tombol **"Cetak Barcode"**, yang akan memunculkan jendela *print browser*.
+4. **Penempelan Fisik**:
+   - Label barcode diprint pada kertas stiker/label (ukuran A4 dengan *grid* atau printer label khusus).
+   - Admin menempelkan label fisik tersebut ke barang/kardus di gudang agar siap di-scan pada **MODE IN** (Restock) maupun **MODE OUT** (Serah Terima).
+
+### Flowchart Cetak Barcode Fisik
+
+```mermaid
+flowchart TD
+    Start([Mulai]) --> OpenMenu[Admin Membuka Menu 'Cetak Barcode']
+    OpenMenu --> LoadMaster[Sistem Memuat Master Data Barang]
+    
+    LoadMaster --> SelectItem[Admin Memilih Barang yang Akan Dicetak]
+    SelectItem --> InputQty[Admin Memasukkan Jumlah Salinan Label per Barang]
+    
+    InputQty --> Preview[Sistem Men-generate Preview Barcode CODE128]
+    Preview --> PrintAction[Admin Menekan Tombol 'Cetak Barcode']
+    
+    PrintAction --> PrintDialog[Muncul Jendela Print Browser\nCetak ke Printer Label/Stiker]
+    PrintDialog --> StickBarcode[Admin Menempelkan Stiker Barcode\nke Fisik Barang di Gudang]
+    
+    StickBarcode --> End([Selesai - Barang Siap Di-scan])
+```
