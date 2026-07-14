@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 
@@ -16,10 +16,39 @@ router.post('/', async (req, res) => {
     }
 
     if (apiKey !== validApiKey) {
-        console.warn('âš ï¸ PERINGATAN: Akses ditolak! Key tidak cocok.');
+        console.warn('⚠️  PERINGATAN: Akses ditolak! Key tidak cocok.');
         return res.status(401).json({ status: 'error', lcd_line_1: 'AKSES DITOLAK!', lcd_line_2: 'UNAUTHORIZED' });
     }
     // ==========================================
+
+    // Simpan status IP & waktu terakhir aktif scanner
+    try {
+        let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        if (ip && ip.includes(',')) {
+            ip = ip.split(',')[0].trim();
+        }
+        if (ip && ip.startsWith('::ffff:')) {
+            ip = ip.substring(7);
+        }
+        
+        const fs = require('fs');
+        const path = require('path');
+        const statusFilePath = path.join(__dirname, '../config/scanner_status.json');
+        
+        const configDir = path.dirname(statusFilePath);
+        if (!fs.existsSync(configDir)) {
+            fs.mkdirSync(configDir, { recursive: true });
+        }
+
+        const statusData = {
+            ip: ip || '127.0.0.1',
+            lastSeen: new Date().toISOString()
+        };
+        
+        fs.writeFileSync(statusFilePath, JSON.stringify(statusData, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Gagal mencatat status scanner:', e.message);
+    }
 
     try {
         // --- SANITASI DATA ---
@@ -102,6 +131,89 @@ router.post('/', async (req, res) => {
         console.error('Error di API Scanner:', err.message);
         return res.status(500).json({ status: 'error', lcd_line_1: 'System Error!', lcd_line_2: 'Cek Server' });
     }
+});
+
+// Rute GET untuk mengecek status koneksi scanner
+const { verifyToken, isAdmin } = require('../middleware/authmiddleware');
+router.get('/status', verifyToken, isAdmin, async (req, res) => {
+    const fs = require('fs');
+    const path = require('path');
+    const { exec } = require('child_process');
+    const statusFilePath = path.join(__dirname, '../config/scanner_status.json');
+    
+    let statusData = { ip: null, lastSeen: null };
+    try {
+        if (fs.existsSync(statusFilePath)) {
+            statusData = JSON.parse(fs.readFileSync(statusFilePath, 'utf8'));
+        }
+    } catch (e) {
+        console.error('Gagal membaca file status scanner:', e.message);
+    }
+    
+    if (!statusData.ip) {
+        return res.json({
+            connected: false,
+            ip: null,
+            lastSeen: null,
+            message: 'Scanner belum pernah terhubung'
+        });
+    }
+    
+    // Bersihkan IP dari karakter aneh untuk menghindari command injection
+    const cleanIp = statusData.ip.replace(/[^0-9a-fA-F.:]/g, '');
+    if (!cleanIp) {
+        return res.json({
+            connected: false,
+            ip: null,
+            lastSeen: statusData.lastSeen,
+            message: 'Format IP scanner tidak valid'
+        });
+    }
+
+    // Ping IP address scanner
+    const isWindows = process.platform === 'win32';
+    const cmd = isWindows 
+        ? `ping -n 1 -w 1000 ${cleanIp}` 
+        : `ping -c 1 -W 1 ${cleanIp}`;
+        
+    exec(cmd, (error, stdout, stderr) => {
+        let isConnected = false;
+        
+        if (stdout) {
+            const out = stdout.toLowerCase();
+            const hasTimeout = out.includes('timed out') || out.includes('waktu habis');
+            const hasUnreachable = out.includes('unreachable') || out.includes('tidak terjangkau');
+            const hasLoss100 = out.includes('100% loss') || out.includes('100% kegagalan');
+            const hasReply = out.includes('reply from') || out.includes('balasan dari');
+            
+            if (isWindows) {
+                isConnected = hasReply && !hasTimeout && !hasUnreachable && !hasLoss100;
+            } else {
+                isConnected = !error && !hasLoss100;
+            }
+        } else {
+            isConnected = !error;
+        }
+
+        // Proteksi Loopback/Localhost:
+        // Karena loopback IP (127.0.0.1 atau ::1) selalu aktif, kita anggap tersambung
+        // hanya jika scan terakhir dilakukan dalam 30 detik terakhir.
+        if (cleanIp === '127.0.0.1' || cleanIp === '::1' || cleanIp === 'localhost') {
+            const lastSeenDate = new Date(statusData.lastSeen);
+            const now = new Date();
+            const diffSec = (now - lastSeenDate) / 1000;
+            if (diffSec > 30) {
+                isConnected = false;
+            }
+        }
+
+        return res.json({
+            connected: isConnected,
+            ip: cleanIp,
+            lastSeen: statusData.lastSeen,
+            message: isConnected ? 'Scanner terhubung' : 'Scanner tidak terjangkau (Offline)'
+        });
+    });
 });
 
 module.exports = router;

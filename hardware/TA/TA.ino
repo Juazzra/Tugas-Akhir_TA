@@ -4,244 +4,179 @@
 #include <MFRC522.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
-#include <WiFiManager.h>
-#include <ArduinoJson.h>
-#include <Preferences.h> // Library baru untuk simpan IP permanen
 
 // ==========================================
-// KONFIGURASI PIN
+// KONFIGURASI PIN (SESUAI SKEMATIK BAB 3)
 // ==========================================
-#define SS_PIN       10
-#define MISO_PIN     11
-#define MOSI_PIN     12
-#define SCK_PIN      13
-#define RST_PIN      14
+#define RST_PIN         4   // Jalur RESET RFID (Kabel Hitam)
+#define SS_PIN          5   // Jalur SDA/SS RFID (Kabel Hijau)
+#define BTN_MODE_PIN    4   // Tombol Mode IN/OUT
+#define BTN_WIFI_PIN    5   // Tombol Reset WiFi (Dipindah ke Pin 5 demi stabilitas)
+#define LED_PIN         2   // LED Indikator Sederhana (Built-in)
 
-#define RX1_PIN      18
-#define TX1_PIN      17
+// ==========================================
+// KREDENSIAL JARINGAN & API BACKEND
+// ==========================================
+const char* ssid     = "Gudang_Setup"; // Sesuaikan dengan Wi-Fi Hotspot HP
+const char* password = "password_hotspot"; 
+const char* serverUrl = "http://192.168.50.65:3000/api/scan";
+const char* apiKey    = "kunci_rahasia_iot_2026";
 
-#define BTN_MODE_PIN 5
-#define BTN_WIFI_PIN 6
-
-MFRC522 rfid(SS_PIN, RST_PIN);
+// ==========================================
+// INISIALISASI INSTANCE MODUL
+// ==========================================
+MFRC522 mfrc522(SS_PIN, RST_PIN);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
-Preferences preferences;
 
-// --- VARIABEL GLOBAL DINAMIS ---
-String currentMode = "IN"; 
-unsigned long lastRfidWatchdog = 0; 
-char serverIP[40];       // Wadah untuk IP dari WiFiManager
-String serverNameURL;    // URL Utuh (Rancangan Dinamis)
+// Variabel Status Sistem
+bool isModeIn = true; // true = IN, false = OUT
 
 void setup() {
   Serial.begin(115200);
-
-  pinMode(BTN_MODE_PIN, INPUT_PULLUP);
-  pinMode(BTN_WIFI_PIN, INPUT_PULLUP);
-
-  Wire.begin(8, 9);
+  SPI.begin();
+  
+  // Inisialisasi Perangkat Keras
+  mfrc522.PCD_Init();
   lcd.init();
   lcd.backlight();
-  lcd.setCursor(0,0);
-  lcd.print("Sistem Gudang");
-  lcd.setCursor(0,1);
+  
+  pinMode(BTN_MODE_PIN, INPUT_PULLUP);
+  pinMode(BTN_WIFI_PIN, INPUT_PULLUP);
+  pinMode(LED_PIN, OUTPUT);
+
+  // Tampilan Awal LCD
+  lcd.setCursor(0, 0);
   lcd.print("Menghubungkan...");
-
-  // ==========================================
-  // BACA MEMORI PERMANEN ESP32
-  // ==========================================
-  preferences.begin("gudang_app", false);
-  // Ambil IP yang tersimpan. Jika kosong, pakai default 10.210.200.3
-  String savedIP = preferences.getString("ip_server", "10.210.200.3");
-  savedIP.toCharArray(serverIP, 40);
-
-  // ==========================================
-  // SETUP WIFIMANAGER & CUSTOM PARAMETER
-  // ==========================================
-  WiFiManager wm;
   
-  // Buat kolom input khusus di portal HP
-  WiFiManagerParameter custom_ip("server", "IP Address Laptop", serverIP, 40);
-  wm.addParameter(&custom_ip);
-
-  wm.setConnectTimeout(30); 
-  if (!wm.autoConnect("Gudang_Setup")) {
-    Serial.println("Gagal konek, sistem restart...");
-    delay(3000);
-    ESP.restart();
+  // Koneksi Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
   }
-
-  // ==========================================
-  // SIMPAN IP BARU (JIKA DIUBAH DI PORTAL)
-  // ==========================================
-  if (String(serverIP) != String(custom_ip.getValue())) {
-    strcpy(serverIP, custom_ip.getValue());
-    preferences.putString("ip_server", serverIP);
-  }
-
-  // Rangkai URL akhir secara otomatis
-  serverNameURL = "http://" + String(serverIP) + ":3000/api/scanner";
-
+  
+  Serial.println("\nWiFi Terhubung!");
   lcd.clear();
-  lcd.print("WiFi Connected!");
-  Serial.println(WiFi.localIP());
-  Serial.println("Target Server: " + serverNameURL);
-
-  delay(2000); // Penstabil arus
-  
-  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN); 
-  rfid.PCD_Init();
-  
-  Serial1.begin(9600, SERIAL_8N1, RX1_PIN, TX1_PIN);
-  Serial1.setTimeout(20); 
-  
-  delay(1000);
-  tampilkanStatusReady();
+  lcd.setCursor(0, 0);
+  lcd.print("WiFi Connected");
+  delay(1500);
 }
 
 void loop() {
-  // 1. LOGIKA TOMBOL MODE
+  // 1. Logika Cek Tombol Perubahan Mode (IN/OUT)
   if (digitalRead(BTN_MODE_PIN) == LOW) {
-    delay(50);
+    delay(50); // Debouncing
     if (digitalRead(BTN_MODE_PIN) == LOW) {
-      currentMode = (currentMode == "IN") ? "OUT" : "IN";
+      isModeIn = !isModeIn;
       lcd.clear();
-      lcd.setCursor(0,0); lcd.print("MODE BERUBAH:");
-      lcd.setCursor(0,1); lcd.print(currentMode == "IN" ? ">> MASUK (IN)" : ">> KELUAR (OUT)");
-      delay(1200);
-      tampilkanStatusReady();
-      while(digitalRead(BTN_MODE_PIN) == LOW);
+      while(digitalRead(BTN_MODE_PIN) == LOW); // Tunggu tombol dilepas
     }
   }
 
-  // 2. LOGIKA TOMBOL RESET WIFI & IP
-  if (digitalRead(BTN_WIFI_PIN) == LOW) {
-    unsigned long pressStart = millis();
-    while (digitalRead(BTN_WIFI_PIN) == LOW) {
-      unsigned long durasi = (millis() - pressStart) / 1000;
-      lcd.setCursor(0,0); lcd.print("Hold to Reset:  ");
-      lcd.setCursor(0,1); lcd.print(String(3 - durasi) + " Detik lagi... ");
-      if (millis() - pressStart >= 3000) break;
-      delay(100);
-    }
-
-    if (millis() - pressStart >= 3000) {
-      lcd.clear();
-      lcd.setCursor(0,0); lcd.print("Clearing WiFi...");
-      lcd.setCursor(0,1); lcd.print("Restarting Tool ");
-      
-      WiFiManager wm;
-      wm.resetSettings(); // Hapus WiFi
-      // Opsional: Hapus memori IP (agar benar-benar kembali ke pabrik)
-      // preferences.remove("ip_server"); 
-      
-      delay(2000);
-      ESP.restart();
-    } else {
-      tampilkanStatusReady();
-    }
+  // Tampilan Menu Standby LCD
+  lcd.setCursor(0, 0);
+  lcd.print("SYSTEM READY    ");
+  lcd.setCursor(0, 1);
+  if (isModeIn) {
+    lcd.print("MODE: IN        ");
+  } else {
+    lcd.print("MODE: OUT       ");
   }
 
-  // 3. WATCHDOG RFID
-  if (millis() - lastRfidWatchdog > 2000) {
-    byte version = rfid.PCD_ReadRegister(rfid.VersionReg);
-    if (version == 0x00 || version == 0xFF) {
-      digitalWrite(RST_PIN, LOW); delay(50);
-      digitalWrite(RST_PIN, HIGH); delay(50);
-      SPI.end(); delay(10);
-      SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN); 
-      rfid.PCD_Init(); 
-    }
-    lastRfidWatchdog = millis();
-  }
-
-  // 4. SCAN RFID
-  if (rfid.PICC_IsNewCardPresent()) {
-    if (rfid.PICC_ReadCardSerial()) {
-      String uid = "";
-      for (byte i = 0; i < rfid.uid.size; i++) {
-        uid += String(rfid.uid.uidByte[i] < 0x10 ? "0" : "");
-        uid += String(rfid.uid.uidByte[i], HEX);
-      }
-      uid.toUpperCase();
-      kirimKeBackend(uid, currentMode);
-      rfid.PICC_HaltA();
-      rfid.PCD_StopCrypto1();
-    }
-  }
-
-  // 5. SCAN BARCODE
-  if (Serial1.available()) {
-    String barcode = Serial1.readStringUntil('\n'); 
-    String cleanBarcode = "";
-    for (int i = 0; i < barcode.length(); i++) {
-      if (isPrintable(barcode[i])) {
-        cleanBarcode += barcode[i];
-      }
-    }
-    cleanBarcode.trim(); 
+  // 2. Logika Cek Pindai Barcode via Hardware Serial 2 (GM65)
+  if (Serial2.available() > 0) {
+    String barcodeData = Serial2.readStringUntil('\n');
+    barcodeData.trim(); // Sanitasi / Data Trimming (\r\n)
     
-    if (cleanBarcode.length() > 0) {
-      kirimKeBackend(cleanBarcode, currentMode);
+    if (barcodeData.length() > 0) {
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Memproses...");
+      lcd.setCursor(0, 1);
+      lcd.print(barcodeData);
+      
+      // Kirim ke Backend Node.js
+      kirimKeBackend(barcodeData, "barcode");
+      delay(2000);
     }
+  }
+
+  // 3. Logika Cek Pindai RFID (MFRC522)
+  if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
+    String rfidData = "";
+    for (byte i = 0; i < mfrc522.uid.size; i++) {
+      rfidData += String(mfrc522.uid.uidByte[i] < 0x10 ? "0" : "");
+      rfidData += String(mfrc522.uid.uidByte[i], HEX);
+    }
+    rfidData.toUpperCase();
+    
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Memproses...");
+    lcd.setCursor(0, 1);
+    lcd.print(rfidData);
+    
+    // Kirim ke Backend Node.js
+    kirimKeBackend(rfidData, "rfid");
+    
+    mfrc522.PICC_HaltA();
+    delay(2000);
   }
 }
 
-void tampilkanStatusReady() {
-  lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print("READY - MODE:");
-  lcd.setCursor(0,1);
-  lcd.print(currentMode == "IN" ? "[->] MASUK" : "[<-] KELUAR");
-}
-
-void kirimKeBackend(String kode, String mode) {
+// ==========================================
+// FUNGSI HTTP POST KE SERVER NODE.JS
+// ==========================================
+void kirimKeBackend(String dataScan, String tipeSensor) {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
-    lcd.clear();
-    lcd.setCursor(0,0); lcd.print("Memproses...");
-    lcd.setCursor(0,1); lcd.print(kode.substring(0, 16)); 
-
-    // Menggunakan variabel dinamis serverNameURL
-    http.begin(serverNameURL); 
-    http.setTimeout(5000); 
+    http.begin(serverUrl);
+    
+    // Set Header untuk Keamanan dan Format
     http.addHeader("Content-Type", "application/json");
-    http.addHeader("Connection", "close"); 
+    http.addHeader("x-api-key", apiKey);
     
-    // (Opsional) Jika kamu pakai fitur API Key dari pembahasan sebelumnya:
-    // http.addHeader("x-api-key", "GudangTA_Sabian2026");
-
-    StaticJsonDocument<200> doc;
-    doc["code"] = kode;
-    doc["mode"] = mode; 
+    // Bungkus Data ke JSON Payload
+    String modeString = isModeIn ? "IN" : "OUT";
+    String jsonPayload = "{\"data\":\"" + dataScan + "\",\"type\":\"" + tipeSensor + "\",\"mode\":\"" + modeString + "\"}";
     
-    String jsonRequest;
-    serializeJson(doc, jsonRequest);
+    int httpResponseCode = http.POST(jsonPayload);
     
-    int httpResponseCode = http.POST(jsonRequest);
-
+    lcd.clear();
     if (httpResponseCode > 0) {
       String response = http.getString();
-      StaticJsonDocument<512> docRes;
-      DeserializationError error = deserializeJson(docRes, response);
-
-      if (!error) {
-        lcd.clear();
-        lcd.setCursor(0,0); lcd.print((const char*)docRes["lcd_line_1"]);
-        lcd.setCursor(0,1); lcd.print((const char*)docRes["lcd_line_2"]);
+      Serial.println("Response: " + response);
+      
+      if (httpResponseCode == 200) {
+        digitalWrite(LED_PIN, HIGH);
+        lcd.setCursor(0, 0);
+        lcd.print("Scan Sukses!");
+        delay(500);
+        digitalWrite(LED_PIN, LOW);
+      } else if (httpResponseCode == 401) {
+        lcd.setCursor(0, 0);
+        lcd.print("AKSES DITOLAK!");
+        lcd.setCursor(0, 1);
+        lcd.print("UNAUTHORIZED");
+      } else {
+        lcd.setCursor(0, 0);
+        lcd.print("Gagal Proses");
+        lcd.setCursor(0, 1);
+        lcd.print("Code: " + String(httpResponseCode));
       }
     } else {
-      lcd.clear();
+      // Penanganan Jika Server Offline
+      Serial.print("Error on sending POST: ");
+      Serial.println(httpResponseCode);
+      lcd.setCursor(0, 0);
       lcd.print("Error Server!");
-      lcd.setCursor(0,1);
-      lcd.print("Code: " + String(httpResponseCode));
+      lcd.setCursor(0, 1);
+      lcd.print("HTTP: " + String(httpResponseCode));
     }
-    http.end(); 
+    http.end();
   } else {
     lcd.clear();
-    lcd.print("WiFi Diskonek!");
+    lcd.setCursor(0, 0);
+    lcd.print("Koneksi Putus!");
   }
-  
-  delay(2500); 
-  tampilkanStatusReady(); 
 }

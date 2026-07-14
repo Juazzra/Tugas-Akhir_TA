@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import {
   Barcode,
@@ -17,9 +17,63 @@ import {
   X,
 } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/authStore'
+import { getScannerStatus } from '../api/scannerApi'
 
 const router = useRouter()
 const authStore = useAuthStore()
+
+// State untuk Sidebar Mobile
+const isSidebarOpen = ref(false)
+const toggleSidebar = () => {
+  isSidebarOpen.value = !isSidebarOpen.value
+}
+const closeSidebar = () => {
+  isSidebarOpen.value = false
+}
+
+// State & Polling untuk Status Hardware Scanner
+const scannerStatus = ref({
+  connected: false,
+  ip: null,
+  lastSeen: null
+})
+
+const formatLastSeen = (timestamp) => {
+  if (!timestamp) return 'Belum pernah'
+  const date = new Date(timestamp)
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+  
+  if (diffMins < 1) return 'Baru saja'
+  if (diffMins < 60) return `${diffMins} mnt lalu`
+  
+  const diffHours = Math.floor(diffMins / 60)
+  if (diffHours < 24) return `${diffHours} jam lalu`
+  
+  return date.toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })
+}
+
+let pollInterval = null
+
+const fetchStatus = async () => {
+  try {
+    const data = await getScannerStatus()
+    scannerStatus.value = data
+  } catch (err) {
+    console.error('Gagal mengambil status scanner:', err)
+    scannerStatus.value.connected = false
+  }
+}
+
+onMounted(() => {
+  fetchStatus()
+  pollInterval = setInterval(fetchStatus, 3000) // Poll setiap 3 detik
+})
+
+onUnmounted(() => {
+  if (pollInterval) clearInterval(pollInterval)
+})
 
 const menus = [
   {
@@ -121,13 +175,19 @@ const handleLogout = () => {
         </RouterLink>
       </nav>
 
-      <div class="scanner-card">
-        <div class="scanner-icon">
+      <div :class="['scanner-card', scannerStatus.connected ? 'connected' : 'disconnected']">
+        <div :class="['scanner-icon', scannerStatus.connected ? 'connected' : 'disconnected']">
           <ScanBarcode :size="22" />
         </div>
         <div>
-          <h3>Scanner Ready</h3>
-          <p>Validasi barang masuk dan serah terima.</p>
+          <h3>{{ scannerStatus.connected ? 'Scanner Tersambung' : 'Scanner Terputus' }}</h3>
+          <p v-if="scannerStatus.connected" class="scanner-details">
+            IP: {{ scannerStatus.ip }} <br/>
+            Aktif: {{ formatLastSeen(scannerStatus.lastSeen) }}
+          </p>
+          <p v-else class="scanner-details">
+            {{ scannerStatus.lastSeen ? `Aktif: ${formatLastSeen(scannerStatus.lastSeen)}` : 'Belum pernah terhubung' }}
+          </p>
         </div>
       </div>
 
@@ -248,6 +308,18 @@ const handleLogout = () => {
   border-radius: 12px;
   background: rgba(37, 99, 235, 0.14);
   border: 1px solid rgba(147, 197, 253, 0.16);
+  transition: all 0.3s ease;
+}
+
+.scanner-card.connected {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.05);
+}
+
+.scanner-card.disconnected {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
 .scanner-icon {
@@ -259,6 +331,17 @@ const handleLogout = () => {
   border-radius: 10px;
   background: rgba(37, 99, 235, 0.32);
   color: #93c5fd;
+  transition: all 0.3s ease;
+}
+
+.scanner-icon.connected {
+  background: rgba(16, 185, 129, 0.25);
+  color: #34d399;
+}
+
+.scanner-icon.disconnected {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
 }
 
 .scanner-card h3 {
@@ -271,6 +354,11 @@ const handleLogout = () => {
   color: #94a3b8;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.scanner-details {
+  line-height: 1.4 !important;
+  font-size: 11px !important;
 }
 
 .logout-button {
