@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mockup WMS - Approval Admin</title>
+    <style>
+        :root { --primary: #2563eb; --primary-hover: #1d4ed8; --bg-color: #f3f4f6; --text-dark: #111827; --text-gray: #6b7280; --border: #e5e7eb; --white: #ffffff; --success: #059669; --danger: #dc2626; --warning: #d97706; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+        body { background-color: var(--bg-color); color: var(--text-dark); padding: 40px; display: flex; justify-content: center; }
+        .main-content { width: 100%; max-width: 1000px; }
+        .card { background: var(--white); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 20px; }
+        h1 { font-size: 24px; margin-bottom: 20px; color: var(--text-dark); }
+        button { background: var(--primary); color: var(--white); border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        button.btn-success { background: var(--success); }
+        button.btn-danger { background: var(--danger); }
+        button.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-dark); }
+        button.btn-outline:hover { background: #eff6ff; color: var(--primary); border-color: var(--primary); }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid var(--border); }
+        th { color: var(--text-gray); font-weight: 600; font-size: 14px; }
+        .badge { padding: 4px 8px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        .badge.warning { background: #fef3c7; color: var(--warning); }
+        .badge.success { background: #d1fae5; color: var(--success); }
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <h1>Daftar Permintaan (Approval Admin)</h1>
+        <div class="card">
+            <table>
+                <thead><tr><th>ID Request</th><th>Pemohon</th><th>Tanggal Ambil</th><th>Status</th><th>Aksi</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td>REQ-10023</td><td>Budi Santoso (123456)</td><td>16 Juli 2026</td>
+                        <td><span class="badge warning">Pending</span></td>
+                        <td><button class="btn-success" style="padding: 6px 10px;">Approve</button> <button class="btn-danger" style="padding: 6px 10px;">Reject</button></td>
+                    </tr>
+                    <tr>
+                        <td>REQ-10022</td><td>Siti Aminah (987654)</td><td>15 Juli 2026</td>
+                        <td><span class="badge success">Approved</span></td>
+                        <td><button class="btn-outline" style="padding: 6px 10px;">Mulai Serah Terima</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

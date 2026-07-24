@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mockup WMS - Antrean Restock IN</title>
+    <style>
+        :root { --primary: #2563eb; --primary-hover: #1d4ed8; --bg-color: #f3f4f6; --text-dark: #111827; --text-gray: #6b7280; --border: #e5e7eb; --white: #ffffff; --success: #059669; --danger: #dc2626; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+        body { background-color: var(--bg-color); color: var(--text-dark); padding: 40px; display: flex; justify-content: center; }
+        .main-content { width: 100%; max-width: 1000px; }
+        .card { background: var(--white); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 20px; }
+        h1 { font-size: 24px; margin-bottom: 20px; color: var(--text-dark); }
+        button { background: var(--primary); color: var(--white); border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        button.btn-success { background: var(--success); }
+        button.btn-danger { background: var(--danger); }
+        button.btn-primary { background: var(--primary); }
+        input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px; outline: none; }
+        input:focus { border-color: var(--primary); }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid var(--border); }
+        th { color: var(--text-gray); font-weight: 600; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <h1>Antrean Restock Barang Masuk (Mode IN)</h1>
+        <p style="margin-bottom: 20px;">Daftar barang yang baru saja di-scan fisik oleh alat ESP32 di area penerimaan gudang.</p>
+        <div class="card">
+            <table>
+                <thead><tr><th>Waktu Scan</th><th>Barcode Alat</th><th>Nama Barang (Master)</th><th>Input Qty Fisik</th><th>Aksi</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td>10:45 AM</td><td>899123456789</td><td>Kertas HVS A4 Sinar Dunia</td>
+                        <td><input type="number" value="10" style="width: 80px; margin:0;"> Dus</td>
+                        <td><button class="btn-success" style="padding: 6px 10px;">Approve (Tambah Stok)</button> <button class="btn-danger" style="padding: 6px 10px;">Hapus</button></td>
+                    </tr>
+                    <tr>
+                        <td>10:42 AM</td><td>UNKNOWN_CODE_99</td><td><span style="color: var(--danger); font-style: italic;">Barang Baru (Belum Terdaftar)</span></td>
+                        <td><input type="number" value="0" disabled style="width: 80px; margin:0; opacity: 0.5;"></td>
+                        <td><button class="btn-primary" style="padding: 6px 10px;">Daftarkan Master Data Dulu</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

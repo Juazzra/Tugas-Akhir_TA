@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mockup WMS - Serah Terima OUT</title>
+    <style>
+        :root { --primary: #2563eb; --primary-hover: #1d4ed8; --bg-color: #f3f4f6; --text-dark: #111827; --text-gray: #6b7280; --border: #e5e7eb; --white: #ffffff; --success: #059669; --warning: #d97706; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+        body { background-color: var(--bg-color); color: var(--text-dark); padding: 40px; display: flex; justify-content: center; }
+        .main-content { width: 100%; max-width: 1000px; }
+        .card { background: var(--white); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 20px; border: 2px solid var(--primary); }
+        h1 { font-size: 24px; margin-bottom: 20px; color: var(--text-dark); }
+        h3 { font-size: 18px; margin-bottom: 10px; }
+        button { background: var(--primary); color: var(--white); border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        button.btn-success { background: var(--success); }
+        button.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-dark); }
+        button.btn-outline:hover { background: #fef2f2; color: #dc2626; border-color: #dc2626; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid var(--border); }
+        th { color: var(--text-gray); font-weight: 600; font-size: 14px; }
+        .badge { padding: 4px 8px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        .badge.warning { background: #fef3c7; color: var(--warning); }
+        .badge.success { background: #d1fae5; color: var(--success); }
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <h1>Serah Terima Barang Fisik (Mode OUT)</h1>
+        <div class="card">
+            <h3>Sesi Aktif: REQ-10022 (Siti Aminah)</h3>
+            <p style="color: var(--text-gray); margin-bottom: 20px;">Silakan tembakkan barcode fisik menggunakan scanner ESP32. Gerbang API telah terbuka.</p>
+            <div style="background: var(--bg-color); padding: 15px; border-radius: 8px; margin-bottom: 20px; font-family: monospace;">[SIMULASI INPUT ALAT ESP32]: Menunggu pindaian...</div>
+            <table>
+                <thead><tr><th>Barang yang harus diserahkan</th><th>Jumlah Fisik</th><th>Status Scan Alat</th></tr></thead>
+                <tbody>
+                    <tr><td>Mouse Wireless Logitech</td><td>1 pcs</td><td><span class="badge success">✓ Terverifikasi (Scanned)</span></td></tr>
+                    <tr><td>Kabel UTP Cat6</td><td>20 pcs</td><td><span class="badge warning">Belum Di-scan</span></td></tr>
+                </tbody>
+            </table>
+            <div style="margin-top: 20px; text-align: right;">
+                <button class="btn-outline">Batalkan Sesi</button>
+                <button class="btn-success" disabled style="opacity: 0.5;">Selesaikan & Potong Stok (Terkunci)</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

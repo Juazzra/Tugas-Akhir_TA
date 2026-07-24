@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mockup WMS - Katalog</title>
+    <style>
+        :root { --primary: #2563eb; --primary-hover: #1d4ed8; --bg-color: #f3f4f6; --text-dark: #111827; --text-gray: #6b7280; --border: #e5e7eb; --white: #ffffff; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+        body { background-color: var(--bg-color); color: var(--text-dark); padding: 40px; display: flex; justify-content: center; }
+        .main-content { width: 100%; max-width: 1000px; }
+        h1 { font-size: 24px; margin-bottom: 20px; color: var(--text-dark); }
+        h4 { margin-bottom: 10px; }
+        button { background: var(--primary); color: var(--white); border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        button.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-dark); }
+        button.btn-outline:hover { background: #eff6ff; color: var(--primary); border-color: var(--primary); }
+        /* Grid Katalog */
+        .grid-katalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+        .item-card { border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center; background: var(--white); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .item-card .img-placeholder { width: 100%; height: 120px; background: #e5e7eb; border-radius: 6px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; color: #9ca3af; }
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <h1>Katalog Barang Karyawan</h1>
+        <p style="margin-bottom: 20px;">Pilih barang yang ingin Anda pinjam atau minta.</p>
+        <div class="grid-katalog">
+            <div class="item-card">
+                <div class="img-placeholder">Gambar Helmet</div>
+                <h4>Helm Proyek Kuning</h4>
+                <p style="color: var(--text-gray); font-size: 14px; margin: 8px 0;">Sisa Stok: 12</p>
+                <button class="btn-outline" style="width: 100%">+ Keranjang</button>
+            </div>
+            <div class="item-card">
+                <div class="img-placeholder">Gambar Kabel</div>
+                <h4>Kabel UTP Cat6 (Meter)</h4>
+                <p style="color: var(--text-gray); font-size: 14px; margin: 8px 0;">Sisa Stok: 150</p>
+                <button class="btn-outline" style="width: 100%">+ Keranjang</button>
+            </div>
+            <div class="item-card">
+                <div class="img-placeholder">Gambar Mouse</div>
+                <h4>Mouse Wireless Logitech</h4>
+                <p style="color: var(--text-gray); font-size: 14px; margin: 8px 0;">Sisa Stok: 5</p>
+                <button class="btn-outline" style="width: 100%">+ Keranjang</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

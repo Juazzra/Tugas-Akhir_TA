@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mockup WMS - Login</title>
+    <style>
+        :root { --primary: #2563eb; --primary-hover: #1d4ed8; --bg-color: #f3f4f6; --text-dark: #111827; --text-gray: #6b7280; --border: #e5e7eb; --white: #ffffff; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+        body { background-color: var(--bg-color); color: var(--text-dark); padding: 40px; display: flex; justify-content: center; }
+        .main-content { width: 100%; max-width: 1000px; }
+        .card { background: var(--white); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 20px; }
+        h1 { font-size: 24px; margin-bottom: 20px; color: var(--text-dark); }
+        button { background: var(--primary); color: var(--white); border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        button:hover { background: var(--primary-hover); }
+        input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px; outline: none; }
+        input:focus { border-color: var(--primary); }
+        .login-wrapper { height: 80vh; display: flex; align-items: center; justify-content: center; }
+        .login-box { width: 100%; max-width: 400px; text-align: center; }
+        .login-box button { width: 100%; }
+    </style>
+</head>
+<body>
+    <div class="login-wrapper main-content">
+        <div class="card login-box">
+            <h1 style="color: var(--primary);">Masuk Sistem WMS</h1>
+            <p style="color: var(--text-gray); margin-bottom: 24px;">Silakan masukkan NIK dan PIN Anda</p>
+            <input type="text" placeholder="Nomor Induk Karyawan (NIK)" value="12345678">
+            <input type="password" placeholder="PIN Rahasia" value="1234">
+            <button>Login ke Sistem</button>
+        </div>
+    </div>
+</body>
+</html>
